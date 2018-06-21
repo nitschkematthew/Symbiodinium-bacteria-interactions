@@ -1,5 +1,5 @@
 ---
-title: "16S: Symbiodinium-bacteria interactions support the formation of calcifying biofilms"
+title: "16S: Symbiodinium-bacteria interactions and functions supporting the formation of calcifying biofilms"
 author: "MNitschke et al"
 date: "02 June 2018"
 output:
@@ -16,8 +16,11 @@ R scripts for reproducing the analysis of the microbiomes of Symbiodinium cultur
 
 # Libraries
 
+Note: loading in phyloseq.extended from https://github.com/mahendra-mariadassou/phyloseq-extended to produce rarefaction curves.
+
 ```{r echo=TRUE, tidy=TRUE, tidy.opts=list(width.cutoff=60)}
 library(phyloseq)
+library(phyloseq.extended)
 library(DESeq2)
 library(vegan)
 library(ggplot2)
@@ -27,44 +30,61 @@ library(scales)
 library(data.table)
 library(car)
 library(FSA)
+library(genefilter)
 ```
 
 # Import data 
 
-Grab the .biom file which is the final step of the Qiime1/VSearch pipeline.
+Grab the .biom file which is the final step of the Qiime1 + VSearch pipeline.
 
 ```{r echo=TRUE, tidy=TRUE, tidy.opts=list(width.cutoff=60)}
 setwd("D://Post-Doc/Symbiolite/Microbiome/Sequencing_data/Vsearch outputs/")
 biom <- import_biom("otu_table132.taxfinalmeta.biom")
 ```
 
-# SP vs NP
+# Supplementary rarefaction curves
 
-Modify the dataset by removing the temporal pre-calcifying and post-calcifying data. 
-
-```{r echo=TRUE,  tidy=TRUE, tidy.opts=list(width.cutoff=60)}
-
-calcifying <- subset_samples(biom, time=="n")
-
+```{r}
+p <- phyloseq.extended:::ggrare(biom, step = 100, color = "state", label = "Sample", se = TRUE) + theme(aspect.ratio = 9 / 16)
 ```
 
-# Alpha Diversity
+# Core
 
-Multiple rarify (100 replications) to minimum read depth across samples to compute alpha diversity statistics (richness, diveress)
+Compute core to compare to Lawson et al 2017. Filter dataset to remove an OTU if it is not present in all samples.
+
+```{r}
+n <- length(sample_names(biom))
+flist <- filterfun(kOverA(n, 0))
+a <- filter_taxa(biom, flist)
+core = prune_taxa(a, biom)
+coreglom <- tax_glom(core, taxrank = "Rank6")
+```
+
+# SP vs NP
+
+Subset the dataset by removing the temporal pre-calcifying and post-calcifying data. 
 
 ```{r echo=TRUE,  tidy=TRUE, tidy.opts=list(width.cutoff=60)}
-min_lib <- min(sample_sums(calcifying))
-nsamp = nsamples(calcifying)
+SPNP <- subset_samples(biom, time=="n")
+```
+
+# Alpha diversity
+
+Multiple rarify (100 replications) to minimum read depth across samples to compute alpha diversity statistics (richness, diversity)
+
+```{r echo=TRUE,  tidy=TRUE, tidy.opts=list(width.cutoff=60)}
+min_lib <- min(sample_sums(SPNP))
+nsamp = nsamples(SPNP)
 trials = 100
 richness <- matrix(nrow = nsamp, ncol = trials)
-row.names(richness) <- sample_names(calcifying)
+row.names(richness) <- sample_names(SPNP)
 diversity <- matrix(nrow = nsamp, ncol = trials)
-row.names(diversity) <- sample_names(calcifying)
+row.names(diversity) <- sample_names(SPNP)
 set.seed(3)
 
 for (i in 1:100) {
    
-   r <- rarefy_even_depth(calcifying, sample.size = min_lib, verbose = FALSE, replace = TRUE)
+   r <- rarefy_even_depth(SPNP, sample.size = min_lib, verbose = FALSE, replace = TRUE)
    
    rich <- as.numeric(as.matrix(estimate_richness(r, measures = "Observed")))
    richness[ ,i] <- rich
@@ -74,7 +94,7 @@ for (i in 1:100) {
 }
 
 SampleID <- row.names(richness)
-Sampledata <- sample_data(calcifying)$state
+Sampledata <- sample_data(SPNP)$state
 mean <- apply(richness, 1, mean)
 sd <- apply(richness, 1, sd)
 measure <- rep("Richness", nsamp)
@@ -82,7 +102,7 @@ rich_stats <- data.frame(SampleID, mean, sd, Sampledata, measure)
 rich_stats
 
 SampleID2 <- row.names(diversity)
-Sampledata2 <- sample_data(calcifying)$state
+Sampledata2 <- sample_data(SPNP)$state
 mean2 <- apply(diversity, 1, mean)
 sd2 <- apply(diversity, 1, sd)
 measure2 <- rep("diversity", nsamp)
@@ -90,28 +110,27 @@ diversity_stats <- data.frame(SampleID2, mean2, sd2, Sampledata2, measure2)
 diversity_stats
 ```
 
-# Alpha Statistics
+# Alpha statistics
 
 Order the table and conduct t test on calc vs non calc
 
 ```{r echo=TRUE, tidy=TRUE, tidy.opts=list(width.cutoff=60)}
-
 kruskal.test(mean ~ Sampledata, data = rich_stats)
 kruskal.test(mean2 ~ Sampledata2, data = diversity_stats)
 
 t.test(mean ~ Sampledata, data = rich_stats)
 t.test(mean2 ~ Sampledata2, data = diversity_stats)
 
-print("Calcifying stderr richness") 
+print("SP stderr richness") 
 sd(rich_stats[1:17,2])/sqrt(17)
 
-print("Non-calcifying stderr richness")
+print("NP stderr richness")
 sd(rich_stats[18:24,2])/sqrt(7)
 
-print("Calcifying stderr diversity")
+print("SP stderr diversity")
 sd(diversity_stats[1:17,2])/sqrt(17)
 
-print("Non-calcifying stderr diversity")
+print("NP stderr diversity")
 sd(diversity_stats[18:24,2])/sqrt(7)
 ```
 
@@ -120,7 +139,7 @@ sd(diversity_stats[18:24,2])/sqrt(7)
 SP vs NP ordination using a Bray-Curtis matrix and PCoA ordination.
 
 ```{r echo=TRUE, tidy=TRUE, tidy.opts=list(width.cutoff=60)}
-calctrans = transform_sample_counts(calcifying, function(x) x/sum(x))
+calctrans = transform_sample_counts(SPNP, function(x) x/sum(x))
 brayordtrans <- ordinate(calctrans, "PCoA", "bray")
 plot_ordination(calctrans, brayordtrans, color="state", shape="state")  + geom_text(aes(label = sample_names(calctrans)), vjust = 1.5) + geom_point(size = 4)
 ```
@@ -131,13 +150,12 @@ Create order so sister strains are adjacent, and also so that SP and NP strains 
 
 ```{r echo=TRUE,  tidy=TRUE, tidy.opts=list(width.cutoff=60)}
 order <- as.character(c("107","108","64","RT64","89","13","RT13","1852A","1852B","1852C","3622A","3622B","3622C","MF2A","MF2B","MF2C","RT146","146","351","RT351","379","Aip24B","CX","MacPC"))
-
 ```
 
 Summarize by genus-level taxonomy assignments, transform to relative proportions, and plot heatmap using a bray-curtis matrix and the PCoA method.
 
 ```{r echo=TRUE, tidy=TRUE, tidy.opts=list(width.cutoff=60)}
-gen_glom <- tax_glom(calcifying, taxrank="Rank6")
+gen_glom <- tax_glom(SPNP, taxrank="Rank6")
 heat = transform_sample_counts(gen_glom, function(x) x/sum(x))
 plot_heatmap(heat, "PCoA", "bray", sample.order = order, low="#000033", high="#FF3300", taxa.label = "Rank6")
 ```
@@ -145,7 +163,7 @@ plot_heatmap(heat, "PCoA", "bray", sample.order = order, low="#000033", high="#F
 Potential alternate heatmap pair to contrast relative abundances of rare taxa without log transforming
 
 ```{r echo=TRUE, tidy=TRUE, tidy.opts=list(width.cutoff=60)}
-gen_glomcalc <- tax_glom(calcifying, taxrank="Rank6")
+gen_glomcalc <- tax_glom(SPNP, taxrank="Rank6")
 gen_glomcalc = transform_sample_counts(gen_glomcalc, function(x) x/sum(x))
 
 TOP=names(sort(taxa_sums(gen_glomcalc),TRUE)[1:25])
@@ -181,7 +199,6 @@ sampledf <- data.frame(sample_data(calctrans))
 beta <- betadisper(bray, sampledf$state)
 
 plot(beta)
-
 ```
 
 # PERMANOVA and betadisper
@@ -201,7 +218,7 @@ anova(beta)
 Use DESeq2 to test for differential abundance of Phylum-level assignments between SP and NP strains.
 
 ```{r}
-phy_glom <- tax_glom(calcifying, taxrank="Rank2")
+phy_glom <- tax_glom(SPNP, taxrank="Rank2")
 SPvNP.phy <- phyloseq_to_deseq2(phy_glom, ~ state)
 SPvNP.phy = DESeq(SPvNP.phy, test="Wald", fitType="parametric")
 res = results(SPvNP.phy, cooksCutoff = FALSE)
@@ -215,7 +232,7 @@ res
 Use DESeq2 to test for differential abundance of Family-level assignments between SP and NP strains.
 
 ```{r}
-fam_glom <- tax_glom(calcifying, taxrank="Rank5")
+fam_glom <- tax_glom(SPNP, taxrank="Rank5")
 SPvNP.gen <- phyloseq_to_deseq2(fam_glom, ~ state)
 SPvNP.gen = DESeq(SPvNP.gen, test="Wald", fitType="parametric")
 res = results(SPvNP.gen, cooksCutoff = FALSE)
@@ -246,7 +263,7 @@ ggplot(sigtab, aes(x=Rank5, y=log2FoldChange, color=Rank5)) + geom_errorbar(aes(
 Use DESeq2 to test for differential abundance of Genus-level assignments between SP and NP strains.
 
 ```{r}
-gen_glom <- tax_glom(calcifying, taxrank="Rank6")
+gen_glom <- tax_glom(SPNP, taxrank="Rank6")
 SPvNP.gen <- phyloseq_to_deseq2(gen_glom, ~ state)
 SPvNP.gen = DESeq(SPvNP.gen, test="Wald", fitType="parametric")
 res = results(SPvNP.gen, cooksCutoff = FALSE)
@@ -278,12 +295,12 @@ ggplot(sigtab, aes(x=Rank6, y=log2FoldChange, color=Rank6)) + geom_errorbar(aes(
 # Supplementary bar plots
 
 ```{r}
-phy_glom <- tax_glom(calcifying, taxrank="Rank2")
+phy_glom <- tax_glom(SPNP, taxrank="Rank2")
 phy_glom = transform_sample_counts(phy_glom, function(x) x/sum(x))
 
 plot_bar(phy_glom, fill = "Rank2") + facet_grid(~state, scales = "free", space = "free_x")
 
-gen_glom <- tax_glom(calcifying, taxrank="Rank6")
+gen_glom <- tax_glom(SPNP, taxrank="Rank6")
 gen_glom = transform_sample_counts(gen_glom, function(x) x/sum(x))
 
 plot_bar(gen_glom, fill = "Rank6") + facet_grid(~state, scales = "free", space = "free_x")
@@ -427,21 +444,26 @@ subtemptransbray <- phyloseq::distance(subtemptrans, method = "bray")
 df <- data.frame(sample_data(subtemptrans))
 
 beta2 <- betadisper(subtemptransbray, df$phase)
+beta3 <- betadisper(subtemptransbray, df$culture)
 
 plot(beta2)
+plot(beta3)
 
 ```
 
 # PERMANOVA and betadisper
 
-Constrain permutations to be nested within each culture to detect differences in phase.
+First model (phase only) does not detect differences. Constrain permutations to be nested within each culture to detect differences in phase specific to each culture.
 
 ```{r echo=TRUE, tidy=TRUE, tidy.opts=list(width.cutoff=60)}
+adonis(formula = subtemptransbray ~ phase, data = df)
 
-adonis(formula = subtemptransbray ~ culture/phase, data = df, strata = df$phase)
+adonis(formula = subtemptransbray ~ culture/phase, data = df, strata = df$culture)
 
 permutest(beta2)
+permutest(beta3)
 
+TukeyHSD(test)
 ```
 
 # Differential abundance
@@ -453,9 +475,9 @@ subtemporal <- subset_samples(biom, series=="y")
 
 phasegen <- tax_glom(subtemporal, taxrank="Rank6")
 
-phasegend2 <- phyloseq_to_deseq2(phasegen, ~ phase) # Run this to treat phases as replicates and ignore cultures
+#phasegend2 <- phyloseq_to_deseq2(phasegen, ~ phase) # Run this to treat phases as replicates and ignore cultures
 
-#phasegend2 <- phyloseq_to_deseq2(phasegen, ~ culture * phase) #Run this to explore across cultures
+phasegend2 <- phyloseq_to_deseq2(phasegen, ~ culture * phase) #Run this to explore across cultures
 
 phasegend2 = DESeq(phasegend2, test="Wald", fitType="parametric")
 
@@ -522,7 +544,6 @@ dp
 Plotting differentially abundant across phases including culture as factor in design.
 
 ```{r}
-
 positions <- c("pre", "active", "post")
 
 tr <- transform_sample_counts(subtemporal, function(x) x/sum(x)*100)
@@ -553,3 +574,4 @@ dp <- ggplot(data=d2, aes(x=phase, y=abund)) + geom_bar(stat = "identity", aes(f
 
 dp
 ```
+
