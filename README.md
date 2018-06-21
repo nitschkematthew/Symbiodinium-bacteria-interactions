@@ -1,3 +1,3 @@
 # Symbiodinium bacteria interactions
 
-Abstract manuscript here and brief description
+Manuscript abstract here and brief description
