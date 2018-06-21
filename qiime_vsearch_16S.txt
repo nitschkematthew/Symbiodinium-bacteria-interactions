@@ -1,0 +1,47 @@
+module load applications/miniconda
+source activate qiime1
+
+split_libraries.py -m 112816JF799F-mapping2.txt -f 112816JF799F-full.fasta -q 112816JF799F-full.qual -o split_library_output/ -b 8
+
+cd split_library_output
+
+source deactivate
+source activate vsearch
+
+vsearch --derep_fulllength seqs.fna --output unique.fasta --sizeout --minseqlength 5
+
+vsearch --sortbysize unique.fasta --output sorted_derep.fasta --minsize 2
+
+vsearch --cluster_fast sorted_derep.fasta -id 0.97 --sizeorder --sizein --sizeout --relabel OTU_ --centroids otus.fas
+
+vsearch --uchime_ref otus.fas --chimeras otus.chimeras.fasta --nonchimeras otus.clean.fasta --db /Silva132/Silva_132_release/SILVA_132_QIIME_release/rep_set/rep_set_16S_only/97/silva_132_97_16S.fna --xsize
+
+vsearch --usearch_global seqs.fna --db otus.clean.fasta --biomout otu_table.biom --otutabout otu_table.tab --id 0.97
+
+source deactivate
+source activate qiime1
+
+assign_taxonomy.py -i otus.clean.fasta -r /Silva132/Silva_132_release/SILVA_132_QIIME_release/rep_set/rep_set_16S_only/97/silva_132_97_16S.fna -t /Silva132/Silva_132_release/SILVA_132_QIIME_release/taxonomy/16S_only/97/raw_taxonomy.txt
+
+source deactivate
+
+cd uclust_assigned_taxonomy
+
+nano otus.clean_tax_assignments.txt
+#add tab-separated headers 	
+#OTUID		taxonomy		evalue
+#use ctrl+x and save as 
+otus.clean_tax_assignments_header.txt
+
+cd ..
+
+source activate biom-format
+
+biom add-metadata -i otu_table.biom -o final_otu_table.added_taxonomy.biom --observation-metadata-fp uclust_assigned_taxonomy/otus.clean_tax_assignments_header.txt --sc-separated taxonomy
+
+biom convert -i final_otu_table.added_taxonomy.biom -o final_otu_table_tax.tsv --to-tsv --header-key taxonomy
+
+source deactivate
+source activate qiime1
+
+summarize_taxa.py -i final_otu_table.added_taxonomy.biom -o ./taxasummary -a
