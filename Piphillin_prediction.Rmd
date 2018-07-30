@@ -1,0 +1,645 @@
+---
+title: "piphillin"
+author: "MNitschke"
+date: "18 July 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Libraries
+
+```{r  echo=TRUE}
+library(Tax4Fun)
+library(DESeq2)
+library(vegan)
+library(data.table)
+library(gplots)
+library(multtest)
+library(tibble)
+library(dplyr)
+library(phyloseq)
+library(tidyr)
+library(stringr)
+library(ggplot2)
+library(scales)
+```
+
+# Import Piphillin KEGG pathways output and convert to phyloseq object
+
+```{r}
+tax <- read.table("D:/Post-Doc/Symbiolite/Microbiome/Sequencing_data/Vsearch outputs/uclust_assigned_taxonomy123/piphillin90_pathwayko.txt", header = TRUE, sep = "\t")
+
+taxnames <- read.table("D:/Post-Doc/Symbiolite/Microbiome/Sequencing_data/Vsearch outputs/Piphillin/rest_path.txt", header = FALSE, colClasses=c("character", "character", "character"), sep = "\t")
+taxnames$OTUID <- paste(taxnames$V1, taxnames$V2, sep="")
+taxnames$V2 <- NULL
+taxnames$V1 <- NULL
+
+taxonomy <- left_join(tax, taxnames, by = "OTUID")
+
+taxonomy <- tax_table(taxonomy)
+rownames(taxonomy) <- taxonomy[,1]
+taxonomy <- taxonomy[,-1]
+colnames(taxonomy)[1] <- "path"
+
+otu <- read.table("D:/Post-Doc/Symbiolite/Microbiome/Sequencing_data/Vsearch outputs/uclust_assigned_taxonomy123/piphillin90_OTUtabpathways.txt", header = TRUE, sep = "\t")
+
+is.num <- sapply(otu, is.numeric)
+otu[is.num] <- lapply(otu[is.num], floor)
+
+rownames(otu) <- otu[,1]
+otu[,1] <- NULL
+OTUtab <- otu_table(otu, taxa_are_rows = TRUE)
+
+map <- read.table("D:/Post-Doc/Symbiolite/Microbiome/Sequencing_data/Vsearch outputs/uclust_assigned_taxonomy123/map.txt", header = TRUE)
+
+sampdat <- sample_data(map)
+rownames(sampdat) <- sampdat$sample
+sampdat$sample <- NULL
+
+pippath <- merge_phyloseq(OTUtab, sampdat, taxonomy)
+```
+
+# Import Piphillin KEGG orthologs output and convert to phyloseq object
+
+```{r}
+tax <- read.table("D:/Post-Doc/Symbiolite/Microbiome/Sequencing_data/Vsearch outputs/uclust_assigned_taxonomy123/piphillin90_KO.txt", header = TRUE, sep = "\t")
+
+taxnames <- read.table("D:/Post-Doc/Symbiolite/Microbiome/Sequencing_data/Vsearch outputs/Piphillin/KEGG_rest/rest_ko_test.txt", header = FALSE, colClasses=c("character", "character"), sep = "\t", quote="")
+
+taxnames <- separate(taxnames, V2, sep=";", remove = TRUE, into = c("name", "definition"))
+colnames(taxnames)[1] <- "OTUID"
+
+taxonomy <- left_join(tax, taxnames, by = "OTUID")
+
+taxonomy <- tax_table(taxonomy)
+rownames(taxonomy) <- taxonomy[,1]
+taxonomy <- taxonomy[,-1]
+colnames(taxonomy)[1] <- "name"
+colnames(taxonomy)[2] <- "definition"
+
+otu <- read.table("D:/Post-Doc/Symbiolite/Microbiome/Sequencing_data/Vsearch outputs/uclust_assigned_taxonomy123/piphillin90_OTUtabKOs.txt", header = TRUE, sep = "\t")
+
+is.num <- sapply(otu, is.numeric)
+otu[is.num] <- lapply(otu[is.num], floor)
+
+rownames(otu) <- otu[,1]
+otu[,1] <- NULL
+OTUtab <- otu_table(otu, taxa_are_rows = TRUE)
+
+map <- read.table("D:/Post-Doc/Symbiolite/Microbiome/Sequencing_data/Vsearch outputs/uclust_assigned_taxonomy123/map.txt", header = TRUE)
+
+sampdat <- sample_data(map)
+rownames(sampdat) <- sampdat$sample
+sampdat$sample <- NULL
+
+pipko <- merge_phyloseq(OTUtab, sampdat, taxonomy)
+```
+
+# Add some more sample metadata to the phyloseq objects about clade and ITS2 type
+
+```{r}
+ITS2 <- c("A2","A2","B1","B1","A2","A2","A2","A2","A2","A2","A2","A2","A2","B1","A1","A1","A1","A1","A1","A1","A1","A1","A1","A4","B1","A2","B1","A12","A2","A2","A2","A2","A2","A2","A2","A2","A2","B1","B1","B1","B1","B1")
+clade <- c("A","A","B","B","A","A","A","A","A","A","A","A","A","B","A","A","A","A","A","A","A","A","A","A","B","A","B","A","A","A","A","A","A","A","A","A","A","B","B","B","B","B")
+
+sample_data(pippath)$ITS2 <- ITS2
+sample_data(pippath)$clade <- clade
+
+sample_data(pipko)$ITS2 <- ITS2
+sample_data(pipko)$clade <- clade
+```
+
+## Supplementary table 
+
+Write to csv for supplementary tables in manuscript
+
+```{r}
+pathcsv <- as.data.frame((otu_table(pippath)))
+pathcsv <- tibble::rownames_to_column(pathcsv)
+setnames(pathcsv, 1:1, c("ko"))
+
+taxcsv <- as.data.frame((tax_table(pippath)))
+taxcsv <- tibble::rownames_to_column(taxcsv)
+setnames(taxcsv, 1:1, c("ko"))
+
+pathcsv <- left_join(pathcsv, taxcsv, by = "ko")
+
+write.table(pathcsv,"Piphillin_path_export.csv",sep="\t")
+
+pathcsv <- as.data.frame((otu_table(pipko)))
+pathcsv <- tibble::rownames_to_column(pathcsv)
+setnames(pathcsv, 1:1, c("ko"))
+
+taxcsv <- as.data.frame((tax_table(pipko)))
+taxcsv <- tibble::rownames_to_column(taxcsv)
+setnames(taxcsv, 1:1, c("ko"))
+
+pathcsv <- left_join(pathcsv, taxcsv, by = "ko")
+
+write.table(pathcsv,"Piphillin_ko_export.csv",sep="\t")
+```
+
+# SP vs NP
+
+Subset the dataset by removing the temporal pre-calcifying and post-calcifying data. 
+
+```{r echo=TRUE,  tidy=TRUE, tidy.opts=list(width.cutoff=60)}
+SPNPp <- subset_samples(pippath, time=="n")
+SPNPko <- subset_samples(pipko, time=="n")
+```
+
+# Figure 2 part 1: Ordinate
+
+SP vs NP ordination using a Bray-Curtis matrix and PCoA ordination.
+
+```{r}
+SPNPt = transform_sample_counts(SPNPp, function(x) x/sum(x))
+
+brayp <- ordinate(SPNPt, "PCoA", "bray")
+
+plot_ordination(SPNPt, brayp, color="state", shape="clade") + 
+  geom_text(aes(label = sample_names(SPNPt)), vjust = 1.5) + 
+  geom_point(size = 4) #+ 
+  #scale_x_reverse()
+```
+
+# Figure 2 part 2
+
+Grab centroids and vectors from samples to centroids to overlay on part 1
+
+```{r}
+bray <- phyloseq::distance(SPNPt, method = "bray")
+sampledf <- data.frame(sample_data(SPNPt))
+
+betastate <- betadisper(bray, sampledf$state)
+betaclade <- betadisper(bray, sampledf$clade)
+
+plot(betastate)
+plot(betaclade)
+```
+
+# Path PERMANOVA and betadisper
+
+Run script chunk above first and then compute statistics and homogeneity of dispersions test
+
+```{r}
+adonis2(bray ~ state, data = sampledf)
+adonis2(bray ~ clade, data = sampledf)
+
+adonis2(bray ~ state + clade, by = "margin", data = sampledf)
+
+anova(betastate)
+anova(betaclade)
+```
+
+# Differential abundance
+
+Use DESeq2 to test for differential abundance of KEGG pathways between SP and NP strains.
+
+```{r}
+SPvNP <- phyloseq_to_deseq2(SPNPp, ~ state)
+SPvNP = DESeq(SPvNP, test="Wald", fitType="parametric")
+res = results(SPvNP, cooksCutoff = FALSE)
+alpha = 0.05
+sigtab = res[which(res$padj < alpha), ]
+sigtab = cbind(as(sigtab, "data.frame"), as(tax_table(SPNPp)[rownames(sigtab), ], "matrix"))
+View(sigtab)
+```
+
+# Plot all pathways
+
+```{r}
+theme_set(theme_bw())
+scale_fill_discrete <- function(palname = "Set1", ...) {
+    scale_fill_brewer(palette = palname, ...)
+}
+
+x = tapply(sigtab$log2FoldChange, sigtab$path, function(x) max(x))
+x = sort(x, TRUE)
+
+error <- sigtab$lfcSE
+
+sigtab$path = factor(as.character(sigtab$path), levels=names(x))
+
+ggplot(sigtab, aes(y=path, x=log2FoldChange, color=path)) + 
+                      geom_errorbarh(aes(xmin = log2FoldChange + error, xmax = log2FoldChange - error), height = 0.2, colour = "black") + 
+                      geom_point(size=4, show.legend = F) +
+                      geom_vline(xintercept = 0) +
+                      theme(aspect.ratio = 16/9)
+```
+
+# Figure 2 part 3: Pathways of interest
+
+```{r}
+sigtabp <- sigtab %>% filter(str_detect(path,"Glycerolipid|chemotaxis|Phosphotransferase|Glycerophospholipid|Biofilm|Carotenoid|Carbohydrate|Protein digestion|Flagellar|ansamycins|Fatty"))
+
+theme_set(theme_bw())
+scale_fill_discrete <- function(palname = "Set1", ...) {
+    scale_fill_brewer(palette = palname, ...)
+}
+
+x = tapply(sigtabp$log2FoldChange, sigtabp$path, function(x) max(x))
+x = sort(x, TRUE)
+
+error <- sigtabp$lfcSE
+
+sigtabp$path = factor(as.character(sigtabp$path), levels=names(x))
+
+ggplot(sigtabp, aes(y=path, x=log2FoldChange, color=path)) + 
+                      geom_errorbarh(aes(xmin = log2FoldChange + error, xmax = log2FoldChange - error), height = 0.2, colour = "black") + 
+                      #geom_point(size=sqrt(sigtab$baseMean/pi)/50) +
+                      geom_point(size=4, show.legend = F) +
+                      geom_vline(xintercept = 0) +
+                      theme(aspect.ratio = 16/9)
+                      #theme(axis.text.x = element_text(angle = -90))
+```
+
+# Calculate % completeness of each pathway plotted above.
+
+Function to automate the copy + paste approach used in the tax4fun output
+
+All KOs of each pathway were retrieved from the reference pathway page at https://www.genome.jp/dbget-bin/www_bget?ko#####
+
+```{r}
+targetpaths <- c("ko00061","ko00062","ko02060","ko02040","ko00564","ko01051","ko00906","ko04974","ko04973","ko02030","ko02026","ko05111","ko02025")
+
+refpaths <- read.table(file = 'D:/Post-Doc/Symbiolite/Microbiome/Sequencing_data/Vsearch outputs/uclust_assigned_taxonomy123/reference_path_KO.txt', sep = '\t', header = TRUE, strip.white = TRUE)
+refpaths[refpaths==""] <- NA
+
+completeness <- function(pathls, phyloseqpath, phyloseqko, refpaths){
+  subls <- as.matrix(subset(refpaths, select = pathls)) # subset reference pathway file (KO's), headed by pathways (ko's) to match query list
+  pkos <- as.matrix(rownames(tax_table(phyloseqko))) # get a list of all KO's returned by piphillin from phyloseq object
+  pkodf <- as.matrix(pkos)
+  common <- apply(subls, 2, function(x) intersect(x, pkodf)) # intersect every reference pathway KO complete list against what piphillin retrieved
+  found <- apply(subls,2, function(x) length(which(!is.na(x)))) # get a count of orthologs for each pathway
+  pc <- (lengths(common) / found) * 100 # calculate % orthologs of reference pathway present in piphillin output
+  ko <- pathls
+  df <- data.frame(ko, pc)
+  pathdf <- as.data.frame(tax_table(phyloseqpath))
+  pathdf <- rownames_to_column(pathdf, var = "ko")
+  output <- left_join(df, pathdf, by = "ko")
+  return(output)
+}
+
+PC <- completeness(targetpaths, SPNPp, SPNPko, refpaths)
+
+PC
+```
+
+# Supplementary plots of pathways and reference KOs
+
+Plot profiles to contain orthologs from Biofilm pathway (ko02025,  Pseudomonas aeruginosa model).
+
+```{r}
+dfko <- psmelt(SPNPko)
+
+biofilmko <- refpaths
+biofilmko$ko02025 <- as.character(biofilmko$ko02025)
+dfko$OTU <- as.character(dfko$OTU)
+
+dfko <- dfko[dfko$OTU %in% biofilmko$ko02025,]
+
+dfkosel <- dfko %>% select(OTU, Abundance, state, name, definition)
+
+d = dfkosel %>%
+    group_by(OTU,definition,state) %>%
+    summarize(abund = mean(Abundance), sd = sd(Abundance))
+
+d = d %>%
+  mutate(se = ifelse(state=="SP", sd/sqrt(17),sd/sqrt(7)))
+
+d$definition <- as.factor(d$definition)
+d$state <- as.factor(d$state)
+
+theme_set(theme_bw())
+
+dp <- ggplot(data=d, aes(x=abund, y=reorder(definition, abund, sum), colour = state)) + 
+  geom_point(size = 4) + 
+  geom_errorbarh(aes(xmin=abund-se, xmax=abund+se)) +
+  #scale_y_continuous(trans='log') +
+  theme(axis.text.x = element_text(angle = -90, hjust = 0, vjust=0.5))
+
+dp
+```
+
+.. and from the Vibrio biofilm model pathway (ko05111).
+
+```{r}
+dfko <- psmelt(SPNPko)
+
+biofilmko <- refpaths
+biofilmko$ko05111 <- as.character(biofilmko$ko05111)
+dfko$OTU <- as.character(dfko$OTU)
+
+dfko <- dfko[dfko$OTU %in% biofilmko$ko05111,]
+
+dfkosel <- dfko %>% select(OTU, Abundance, state, name, definition)
+
+d = dfkosel %>%
+    group_by(OTU,definition,state) %>%
+    summarize(abund = mean(Abundance), sd = sd(Abundance))
+
+d = d %>%
+  mutate(se = ifelse(state=="SP", sd/sqrt(17),sd/sqrt(7)))
+
+d$definition <- as.factor(d$definition)
+d$state <- as.factor(d$state)
+
+theme_set(theme_bw())
+
+dp <- ggplot(data=d, aes(x=abund, y=reorder(definition, abund, sum), colour = state)) + 
+  geom_point(size = 4) + 
+  geom_errorbarh(aes(xmin=abund-se, xmax=abund+se)) +
+  #scale_y_continuous(trans='log') +
+  theme(axis.text.x = element_text(angle = -90, hjust = 0, vjust=0.5))
+
+dp
+```
+
+.. and from the Escherichia coli biofilm formation pathway (ko02026).
+
+```{r}
+dfko <- psmelt(SPNPko)
+
+biofilmko <- refpaths
+biofilmko$ko02026 <- as.character(biofilmko$ko02026)
+dfko$OTU <- as.character(dfko$OTU)
+
+dfko <- dfko[dfko$OTU %in% biofilmko$ko02026,]
+
+dfkosel <- dfko %>% select(OTU, Abundance, state, name, definition)
+
+d = dfkosel %>%
+    group_by(OTU,definition,state) %>%
+    summarize(abund = mean(Abundance), sd = sd(Abundance))
+
+d = d %>%
+  mutate(se = ifelse(state=="SP", sd/sqrt(17),sd/sqrt(7)))
+
+d$definition <- as.factor(d$definition)
+d$state <- as.factor(d$state)
+
+theme_set(theme_bw())
+
+dp <- ggplot(data=d, aes(x=abund, y=reorder(definition, abund, sum), colour = state)) + 
+  geom_point(size = 4) + 
+  geom_errorbarh(aes(xmin=abund-se, xmax=abund+se)) +
+  #scale_y_continuous(trans='log') +
+  theme(axis.text.x = element_text(angle = -90, hjust = 0, vjust=0.5))
+
+dp
+```
+
+Plot profiles to contain orthologs from Protein digestion pathway (ko04974).
+
+```{r}
+dfko <- psmelt(SPNPko)
+
+biofilmko <- refpaths
+biofilmko$ko04974 <- as.character(biofilmko$ko04974)
+dfko$OTU <- as.character(dfko$OTU)
+
+dfko <- dfko[dfko$OTU %in% biofilmko$ko04974,]
+
+dfkosel <- dfko %>% select(OTU, Abundance, state, name, definition)
+
+d = dfkosel %>%
+    group_by(OTU,definition,state) %>%
+    summarize(abund = mean(Abundance), sd = sd(Abundance))
+
+d = d %>%
+  mutate(se = ifelse(state=="SP", sd/sqrt(17),sd/sqrt(7)))
+
+d$definition <- as.factor(d$definition)
+d$state <- as.factor(d$state)
+
+theme_set(theme_bw())
+
+dp <- ggplot(data=d, aes(x=abund, y=reorder(definition, abund, sum), colour = state)) + 
+  geom_point(size = 4) + 
+  geom_errorbarh(aes(xmin=abund-se, xmax=abund+se)) +
+  #scale_y_continuous(trans='log') +
+  theme(axis.text.x = element_text(angle = -90, hjust = 0, vjust=0.5))
+
+dp
+```
+
+Plot profiles to contain orthologs from Ansamycin pathway (ko01051).
+
+```{r}
+dfko <- psmelt(SPNPko)
+
+biofilmko <- refpaths
+biofilmko$ko01051 <- as.character(biofilmko$ko01051)
+dfko$OTU <- as.character(dfko$OTU)
+
+dfko <- dfko[dfko$OTU %in% biofilmko$ko01051,]
+
+dfkosel <- dfko %>% select(OTU, Abundance, state, name, definition)
+
+d = dfkosel %>%
+    group_by(OTU,definition,state) %>%
+    summarize(abund = mean(Abundance), sd = sd(Abundance))
+
+d = d %>%
+  mutate(se = ifelse(state=="SP", sd/sqrt(17),sd/sqrt(7)))
+
+d$definition <- as.factor(d$definition)
+d$state <- as.factor(d$state)
+
+theme_set(theme_bw())
+
+dp <- ggplot(data=d, aes(x=abund, y=reorder(definition, abund, sum), colour = state)) + 
+  geom_point(size = 4) + 
+  geom_errorbarh(aes(xmin=abund-se, xmax=abund+se)) +
+  #scale_y_continuous(trans='log') +
+  theme(axis.text.x = element_text(angle = -90, hjust = 0, vjust=0.5))
+
+dp
+```
+
+Plot profiles to contain orthologs from PTS pathway (ko02060).
+
+```{r}
+dfko <- psmelt(SPNPko)
+
+biofilmko <- refpaths
+biofilmko$ko02060 <- as.character(biofilmko$ko02060)
+dfko$OTU <- as.character(dfko$OTU)
+
+dfko <- dfko[dfko$OTU %in% biofilmko$ko02060,]
+
+dfkosel <- dfko %>% select(OTU, Abundance, state, name, definition)
+
+d = dfkosel %>%
+    group_by(OTU,definition,state) %>%
+    summarize(abund = mean(Abundance), sd = sd(Abundance))
+
+d = d %>%
+  mutate(se = ifelse(state=="SP", sd/sqrt(17),sd/sqrt(7)))
+
+d$definition <- as.factor(d$definition)
+d$state <- as.factor(d$state)
+
+theme_set(theme_bw())
+
+dp <- ggplot(data=d, aes(x=abund, y=reorder(definition, abund, sum), colour = state)) + 
+  geom_point(size = 4) + 
+  geom_errorbarh(aes(xmin=abund-se, xmax=abund+se)) +
+  #scale_y_continuous(trans='log') +
+  theme(axis.text.x = element_text(angle = -90, hjust = 0, vjust=0.5))
+
+dp
+```
+
+# Differential abundance KOs
+
+Use DESeq2 to test for differential abundance of KEGG pathways between SP and NP strains.
+
+```{r}
+SPvNPk <- phyloseq_to_deseq2(SPNPko, ~ state)
+SPvNPk = DESeq(SPvNPk, test="Wald", fitType="parametric")
+res = results(SPvNPk, cooksCutoff = FALSE)
+alpha = 0.05
+sigtabk = res[which(res$padj < alpha), ]
+sigtabk = cbind(as(sigtabk, "data.frame"), as(tax_table(SPNPko)[rownames(sigtabk), ], "matrix"))
+View(sigtabk)
+```
+
+# Phase transition
+
+```{r}
+pathtemp <- subset_samples(pippath, series=="y")
+```
+
+# Figure X: Ordinate
+
+Transform to relative proportions as above. Pre vs active vs post calcification ordinations using a Bray-Curtis matrix and PCoA ordination.
+
+```{r echo=TRUE, tidy=TRUE, tidy.opts=list(width.cutoff=60)}
+temp.t = transform_sample_counts(pathtemp, function(x) x/sum(x))
+
+brayordtranstemp <- ordinate(temp.t, "PCoA", "bray")
+
+plot_ordination(temp.t, brayordtranstemp, color="phase", shape="phase")  + 
+  geom_text(aes(label = sample_names(temp.t)), vjust = 1.5) +
+  geom_point(size = 4)
+```
+
+# Figure 4 part 2 
+
+Grab centroids and vectors from samples to centroids to overlay on part 1
+
+```{r}
+bpathtr <- phyloseq::distance(temp.t, method = "bray")
+
+df <- data.frame(sample_data(temp.t))
+
+beta2 <- betadisper(bpathtr, df$phase)
+
+plot(beta2)
+```
+
+```{r}
+phaseda <- phyloseq_to_deseq2(pathtemp, ~ phase) # Run this to treat phases as replicates and ignore cultures
+
+#phaseda <- phyloseq_to_deseq2(pathtemp, ~ culture * phase) #Run this to explore across cultures
+
+phaseda = DESeq(phaseda, test="Wald", fitType="parametric")
+
+res.p.a = results(phaseda, cooksCutoff = FALSE, contrast = c("phase", "pre", "active"))
+res.a.po = results(phaseda, cooksCutoff = FALSE, contrast = c("phase", "active", "post"))
+res.p.po = results(phaseda, cooksCutoff = FALSE, contrast = c("phase", "pre", "post"))
+
+alpha = 0.05
+
+sigtab.p.a = res.p.a[which(res.p.a$padj < alpha), ]
+sigtab.p.a = cbind(as(sigtab.p.a, "data.frame"), as(tax_table(pathtemp)[rownames(sigtab.p.a), ], "matrix"))
+
+View(sigtab.p.a)
+
+sigtab.a.po = res.a.po[which(res.a.po$padj < alpha), ]
+sigtab.a.po = cbind(as(sigtab.a.po, "data.frame"), as(tax_table(pathtemp)[rownames(sigtab.a.po), ], "matrix"))
+
+View(sigtab.a.po)
+
+sigtab.p.po = res.p.po[which(res.p.po$padj < alpha), ]
+sigtab.p.po = cbind(as(sigtab.p.po, "data.frame"), as(tax_table(pathtemp)[rownames(sigtab.p.po), ], "matrix"))
+
+View(sigtab.p.po)
+```
+
+# Figure 4 part 3
+
+Plot pathways (above) that are significantly different through time and are of relevance to the study.
+
+```{r}
+
+
+df <- psmelt(pathtemp)
+
+avgs <- df %>% select(OTU, Sample, culture, Abundance, path, phase)
+
+d = avgs %>%
+    group_by(Sample,culture,path,phase,OTU) %>%
+    filter(Abundance > 0) %>%
+    summarize(path.abund = sum(Abundance))
+
+d2 = d %>%
+    group_by(OTU,path,phase) %>%
+    summarize(abund = mean(path.abund), se = sd(path.abund)/sqrt(3))
+
+d2$path <- as.factor(d2$path)
+d2$phase <- as.factor(d2$phase)
+
+d3 <- d2
+
+d3 <- d3 %>% filter(str_detect(path, "Biofilm formation - Pse|Biofilm formation - Vib|siderophore"))
+
+theme_set(theme_bw())
+
+positions <- c("pre", "active", "post")
+
+dp <- ggplot(data=d3, aes(x=phase, y=abund)) + 
+  geom_bar(stat = "identity") + 
+  facet_grid(path~., scales = "free_y") + 
+  geom_errorbar(aes(ymin=abund-se, ymax=abund+se), width=0.1) + 
+  scale_x_discrete(limits = positions) + 
+  scale_y_continuous() + 
+  theme(aspect.ratio = 1)
+
+dp
+```
+
+# ---------------------------------------------
+
+# Supplementary KO
+
+Subset the dataset by removing the temporal pre-calcifying and post-calcifying data. 
+
+```{r echo=TRUE,  tidy=TRUE, tidy.opts=list(width.cutoff=60)}
+SPNPko <- subset_samples(pipko, time=="n")
+```
+
+```{r}
+SPvNPko <- phyloseq_to_deseq2(SPNPko, ~ state)
+SPvNP.phy = DESeq(SPvNP.phy, test="Wald", fitType="parametric")
+res = results(SPvNP.phy, cooksCutoff = FALSE)
+alpha = 0.05
+sigtab = res[which(res$padj < alpha), ]
+sigtab = cbind(as(sigtab, "data.frame"), as(tax_table(SPNP)[rownames(sigtab), ], "matrix"))
+View(sigtab)
+```
+
+```{r}
+SPNPkot = transform_sample_counts(SPNPko, function(x) x/sum(x))
+
+brayko <- ordinate(SPNPkot, "PCoA", "bray")
+
+plot_ordination(SPNPkot, brayko, color="state", shape="state") + 
+  geom_text(aes(label = sample_names(SPNPkot)), vjust = 1.5) + 
+  geom_point(size = 4) #+ 
+  #scale_x_reverse()
+```
