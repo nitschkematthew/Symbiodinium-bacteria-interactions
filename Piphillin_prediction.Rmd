@@ -290,17 +290,19 @@ PC
 
 # Supplementary plots of pathways and reference KOs
 
-Plot profiles to contain orthologs from Biofilm pathway (ko02025,  Pseudomonas aeruginosa model).
+A function that melts the phyloseq object, filters the melted df to contain only the reference KOs, calculates mean and error of SP vs NP cultures, and returns the plot.
 
 ```{r}
-dfko <- psmelt(SPNPko)
+pathwayplot <- function(phyloseqko, ID, refpaths){
+  
+  dfko <- psmelt(phyloseqko)
 
-biofilmko <- refpaths
-biofilmko$ko02025 <- as.character(biofilmko$ko02025)
-dfko$OTU <- as.character(dfko$OTU)
+  biofilmko <- subset(refpaths, select = ID)
+  colnames(biofilmko)[1] <- "ID"
+  biofilmko$ID <- as.character(biofilmko$ID)
+  dfko$OTU <- as.character(dfko$OTU)
 
-dfko <- dfko[dfko$OTU %in% biofilmko$ko02025,]
-
+dfko <- dfko[dfko$OTU %in% biofilmko$ID,]
 dfkosel <- dfko %>% select(OTU, Abundance, state, name, definition)
 
 d = dfkosel %>%
@@ -318,183 +320,42 @@ theme_set(theme_bw())
 dp <- ggplot(data=d, aes(x=abund, y=reorder(definition, abund, sum), colour = state)) + 
   geom_point(size = 4) + 
   geom_errorbarh(aes(xmin=abund-se, xmax=abund+se)) +
-  #scale_y_continuous(trans='log') +
   theme(axis.text.x = element_text(angle = -90, hjust = 0, vjust=0.5))
+  
+  return(dp)
+}
+```
 
-dp
+```{r}
+pathwayplot(SPNPko, ID = "ko00061", refpaths)
+```
+
+
+Plot profiles to contain orthologs from Biofilm pathway (ko02025,  Pseudomonas aeruginosa model).
+
+```{r}
+pathwayplot(SPNPko, ID = "ko02025", refpaths)
 ```
 
 .. and from the Vibrio biofilm model pathway (ko05111).
 
 ```{r}
-dfko <- psmelt(SPNPko)
-
-biofilmko <- refpaths
-biofilmko$ko05111 <- as.character(biofilmko$ko05111)
-dfko$OTU <- as.character(dfko$OTU)
-
-dfko <- dfko[dfko$OTU %in% biofilmko$ko05111,]
-
-dfkosel <- dfko %>% select(OTU, Abundance, state, name, definition)
-
-d = dfkosel %>%
-    group_by(OTU,definition,state) %>%
-    summarize(abund = mean(Abundance), sd = sd(Abundance))
-
-d = d %>%
-  mutate(se = ifelse(state=="SP", sd/sqrt(17),sd/sqrt(7)))
-
-d$definition <- as.factor(d$definition)
-d$state <- as.factor(d$state)
-
-theme_set(theme_bw())
-
-dp <- ggplot(data=d, aes(x=abund, y=reorder(definition, abund, sum), colour = state)) + 
-  geom_point(size = 4) + 
-  geom_errorbarh(aes(xmin=abund-se, xmax=abund+se)) +
-  #scale_y_continuous(trans='log') +
-  theme(axis.text.x = element_text(angle = -90, hjust = 0, vjust=0.5))
-
-dp
+pathwayplot(SPNPko, ID = "ko05111", refpaths)
 ```
 
 .. and from the Escherichia coli biofilm formation pathway (ko02026).
 
 ```{r}
-dfko <- psmelt(SPNPko)
-
-biofilmko <- refpaths
-biofilmko$ko02026 <- as.character(biofilmko$ko02026)
-dfko$OTU <- as.character(dfko$OTU)
-
-dfko <- dfko[dfko$OTU %in% biofilmko$ko02026,]
-
-dfkosel <- dfko %>% select(OTU, Abundance, state, name, definition)
-
-d = dfkosel %>%
-    group_by(OTU,definition,state) %>%
-    summarize(abund = mean(Abundance), sd = sd(Abundance))
-
-d = d %>%
-  mutate(se = ifelse(state=="SP", sd/sqrt(17),sd/sqrt(7)))
-
-d$definition <- as.factor(d$definition)
-d$state <- as.factor(d$state)
-
-theme_set(theme_bw())
-
-dp <- ggplot(data=d, aes(x=abund, y=reorder(definition, abund, sum), colour = state)) + 
-  geom_point(size = 4) + 
-  geom_errorbarh(aes(xmin=abund-se, xmax=abund+se)) +
-  #scale_y_continuous(trans='log') +
-  theme(axis.text.x = element_text(angle = -90, hjust = 0, vjust=0.5))
-
-dp
+pathwayplot(SPNPko, ID = "ko02026", refpaths)
 ```
 
-Plot profiles to contain orthologs from Protein digestion pathway (ko04974).
+Plot orthologs from PTS pathway (ko02060).
 
 ```{r}
-dfko <- psmelt(SPNPko)
-
-biofilmko <- refpaths
-biofilmko$ko04974 <- as.character(biofilmko$ko04974)
-dfko$OTU <- as.character(dfko$OTU)
-
-dfko <- dfko[dfko$OTU %in% biofilmko$ko04974,]
-
-dfkosel <- dfko %>% select(OTU, Abundance, state, name, definition)
-
-d = dfkosel %>%
-    group_by(OTU,definition,state) %>%
-    summarize(abund = mean(Abundance), sd = sd(Abundance))
-
-d = d %>%
-  mutate(se = ifelse(state=="SP", sd/sqrt(17),sd/sqrt(7)))
-
-d$definition <- as.factor(d$definition)
-d$state <- as.factor(d$state)
-
-theme_set(theme_bw())
-
-dp <- ggplot(data=d, aes(x=abund, y=reorder(definition, abund, sum), colour = state)) + 
-  geom_point(size = 4) + 
-  geom_errorbarh(aes(xmin=abund-se, xmax=abund+se)) +
-  #scale_y_continuous(trans='log') +
-  theme(axis.text.x = element_text(angle = -90, hjust = 0, vjust=0.5))
-
-dp
+pathwayplot(SPNPko, ID = "ko02060", refpaths)
 ```
 
-Plot profiles to contain orthologs from Ansamycin pathway (ko01051).
-
-```{r}
-dfko <- psmelt(SPNPko)
-
-biofilmko <- refpaths
-biofilmko$ko01051 <- as.character(biofilmko$ko01051)
-dfko$OTU <- as.character(dfko$OTU)
-
-dfko <- dfko[dfko$OTU %in% biofilmko$ko01051,]
-
-dfkosel <- dfko %>% select(OTU, Abundance, state, name, definition)
-
-d = dfkosel %>%
-    group_by(OTU,definition,state) %>%
-    summarize(abund = mean(Abundance), sd = sd(Abundance))
-
-d = d %>%
-  mutate(se = ifelse(state=="SP", sd/sqrt(17),sd/sqrt(7)))
-
-d$definition <- as.factor(d$definition)
-d$state <- as.factor(d$state)
-
-theme_set(theme_bw())
-
-dp <- ggplot(data=d, aes(x=abund, y=reorder(definition, abund, sum), colour = state)) + 
-  geom_point(size = 4) + 
-  geom_errorbarh(aes(xmin=abund-se, xmax=abund+se)) +
-  #scale_y_continuous(trans='log') +
-  theme(axis.text.x = element_text(angle = -90, hjust = 0, vjust=0.5))
-
-dp
-```
-
-Plot profiles to contain orthologs from PTS pathway (ko02060).
-
-```{r}
-dfko <- psmelt(SPNPko)
-
-biofilmko <- refpaths
-biofilmko$ko02060 <- as.character(biofilmko$ko02060)
-dfko$OTU <- as.character(dfko$OTU)
-
-dfko <- dfko[dfko$OTU %in% biofilmko$ko02060,]
-
-dfkosel <- dfko %>% select(OTU, Abundance, state, name, definition)
-
-d = dfkosel %>%
-    group_by(OTU,definition,state) %>%
-    summarize(abund = mean(Abundance), sd = sd(Abundance))
-
-d = d %>%
-  mutate(se = ifelse(state=="SP", sd/sqrt(17),sd/sqrt(7)))
-
-d$definition <- as.factor(d$definition)
-d$state <- as.factor(d$state)
-
-theme_set(theme_bw())
-
-dp <- ggplot(data=d, aes(x=abund, y=reorder(definition, abund, sum), colour = state)) + 
-  geom_point(size = 4) + 
-  geom_errorbarh(aes(xmin=abund-se, xmax=abund+se)) +
-  #scale_y_continuous(trans='log') +
-  theme(axis.text.x = element_text(angle = -90, hjust = 0, vjust=0.5))
-
-dp
-```
-
-# Differential abundance KOs
+# Supplementary Differential abundance KOs
 
 Use DESeq2 to test for differential abundance of KEGG pathways between SP and NP strains.
 
