@@ -9,6 +9,8 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+## Testing commit from sourcetree
+
 # Libraries
 
 ```{r  echo=TRUE}
@@ -437,8 +439,6 @@ View(sigtab.p.po)
 Plot pathways (above) that are significantly different through time and are of relevance to the study.
 
 ```{r}
-
-
 df <- psmelt(pathtemp)
 
 avgs <- df %>% select(OTU, Sample, culture, Abundance, path, phase)
