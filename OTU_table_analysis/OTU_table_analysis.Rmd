@@ -1,5 +1,5 @@
 ---
-title: "16S: Symbiodinium-bacteria interactions and functions supporting the formation of calcifying biofilms"
+title: "Symbiodiniaceae-bacteria interactions and functions supporting the formation of calcifying biofilms"
 author: "MNitschke et al"
 date: "02 June 2018"
 output:
@@ -14,9 +14,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 R scripts for reproducing the analysis of the microbiomes of Symbiodinium cultures. These scripts follow on from the Qiime + Vsearch pipeline used to generate OTUs and assign taxonomy against the Silva 132 database.The primary input is an OTU table in biom format that already contains the sample and observation metadata ("otu_table132.taxfinalmeta.biom").
 
-# Libraries
-
-Note: loading in phyloseq.extended from https://github.com/mahendra-mariadassou/phyloseq-extended to produce rarefaction curves.
+### Libraries
 
 ```{r echo=TRUE, tidy=TRUE, tidy.opts=list(width.cutoff=60)}
 library(phyloseq)
@@ -33,23 +31,33 @@ library(FSA)
 library(genefilter)
 ```
 
-# Import data 
+Note: loading in phyloseq.extended from https://github.com/mahendra-mariadassou/phyloseq-extended to produce rarefaction curves.
 
-Grab the .biom file which is the final step of the Qiime1 + VSearch pipeline.
+### Import data 
+
+Grab the .biom file which is the final step of the Qiime1 + VSearch pipeline. Add ITS2 type to sample metadata.
 
 ```{r echo=TRUE, tidy=TRUE, tidy.opts=list(width.cutoff=60)}
 setwd("D://Post-Doc/Symbiolite/Microbiome/Sequencing_data/Vsearch outputs/")
 biom <- import_biom("otu_table132.taxfinalmeta.biom")
+
+ITS2 <- c("A2","A2","B1","B1","A2","A2","A2","A2","A2","A2","A2","A2","A2","B1","A1","A1","A1","A1","A1","A1","A1","A1","A1","A4","B1","A2","B1","A12","A2","A2","A2","A2","A2","A2","A2","A2","A2","B1","B1","B1","B1","B1")
+
+# Clade = genus (A, Symbiodinium; B, Breviolum)
+clade <- c("A","A","B","B","A","A","A","A","A","A","A","A","A","B","A","A","A","A","A","A","A","A","A","A","B","A","B","A","A","A","A","A","A","A","A","A","A","B","B","B","B","B")
+
+sample_data(biom)$ITS2 <- ITS2
+sample_data(biom)$clade <- clade
 ```
 
-# Supplementary rarefaction curves
+### Supplementary rarefaction curves
 
 ```{r}
 p <- phyloseq.extended:::ggrare(biom, step = 100, color = "state", label = "Sample", se = FALSE) + 
   theme(aspect.ratio = 9 / 16)
 ```
 
-# Core microbiome
+### Core microbiome
 
 Compute core to compare to Lawson et al 2017. Filter dataset to remove an OTU if it is not present in all samples.
 
@@ -61,6 +69,14 @@ core = prune_taxa(a, biom)
 coreglom <- tax_glom(core, taxrank = "Rank6")
 ```
 
+### Supplementary table: Core microbiome
+
+```{r}
+coretab <- as.data.frame(tax_table(coreglom))
+coretab$Rank7 <- NULL
+write.table(coretab,"core.tsv", sep="\t", row.names = TRUE, col.names = TRUE, quote = FALSE)
+```
+
 # SP vs NP
 
 Subset the dataset by removing the temporal pre-calcifying and post-calcifying data. 
@@ -69,7 +85,7 @@ Subset the dataset by removing the temporal pre-calcifying and post-calcifying d
 SPNP <- subset_samples(biom, time=="n")
 ```
 
-# Alpha diversity
+### Alpha diversity
 
 Multiple rarify (100 replications) to minimum read depth across samples to compute alpha diversity statistics (richness, diversity)
 
@@ -111,7 +127,7 @@ diversity_stats <- data.frame(SampleID2, mean2, sd2, Sampledata2, measure2)
 diversity_stats
 ```
 
-# Alpha statistics
+### Alpha statistics
 
 Order the table and conduct t test on calc vs non calc
 
@@ -123,7 +139,7 @@ t.test(mean ~ Sampledata, data = rich_stats)
 t.test(mean2 ~ Sampledata2, data = diversity_stats)
 ```
 
-# Compare NP and SP sister strains 
+### Compare NP and SP sister strains 
 
 146 vs RT146
 
@@ -162,12 +178,36 @@ SP vs NP ordination using a Bray-Curtis matrix and PCoA ordination.
 ```{r echo=TRUE, tidy=TRUE, tidy.opts=list(width.cutoff=60)}
 calctrans = transform_sample_counts(SPNP, function(x) x/sum(x))
 brayordtrans <- ordinate(calctrans, "PCoA", "bray")
-plot_ordination(calctrans, brayordtrans, color="state", shape="state")  + 
+plot_ordination(calctrans, brayordtrans, color="state", shape="clade")  + 
   geom_text(aes(label = sample_names(calctrans)), vjust = 1.5) + 
   geom_point(size = 4)
 ```
 
-# Supplementary heatmaps 
+# Figure 1 part 2 
+
+Grab centroids and vectors from samples to centroids to overlay on part 1
+
+```{r echo=TRUE, tidy=TRUE, tidy.opts=list(width.cutoff=60)}
+bray <- phyloseq::distance(calctrans, method = "bray")
+
+sampledf <- data.frame(sample_data(calctrans))
+
+betastate <- betadisper(bray, sampledf$state)
+
+plot(betastate)
+```
+
+# PERMANOVA and betadisper
+
+Run script chunk above first and then compute statistics and homogeneity of dispersions test
+
+```{r}
+adonis2(bray ~ state + clade, by = "margin", data = sampledf)
+
+anova(betastate)
+```
+
+### Supplementary heatmaps 
 
 Create order so sister strains are adjacent, and also so that SP and NP strains are grouped.
 
@@ -212,48 +252,22 @@ plot_ordination(rare, brayordtransrare, color="state", shape="state") +
   geom_point(size = 4)
 ```
 
-# Figure 1 part 2 
+### Differential abundance
 
-Grab centroids and vectors from samples to centroids to overlay on part 1
-
-```{r echo=TRUE, tidy=TRUE, tidy.opts=list(width.cutoff=60)}
-bray <- phyloseq::distance(calctrans, method = "bray")
-
-sampledf <- data.frame(sample_data(calctrans))
-
-beta <- betadisper(bray, sampledf$state)
-
-plot(beta)
-```
-
-# PERMANOVA and betadisper
-
-Run script chunk above first and then compute statistics and homogeneity of dispersions test
-
-```{r}
-adonis(bray ~ state, data = sampledf)
-
-permutest(beta)
-
-anova(beta)
-```
-
-# Differential abundance
-
-Use DESeq2 to test for differential abundance of Phylum-level assignments between SP and NP strains.
+Use DESeq2 to test for differential abundance of phylum-level assignments between SP and NP strains.
 
 ```{r}
 phy_glom <- tax_glom(SPNP, taxrank="Rank2")
 SPvNP.phy <- phyloseq_to_deseq2(phy_glom, ~ state)
 SPvNP.phy = DESeq(SPvNP.phy, test="Wald", fitType="parametric")
-res = results(SPvNP.phy, cooksCutoff = FALSE)
+res = results(SPvNP.phy, cooksCutoff = FALSE, contrast = c("state","SP","NP"))
 alpha = 0.05
 sigtabp = res[which(res$padj < alpha), ]
 sigtabp = cbind(as(sigtabp, "data.frame"), as(tax_table(phy_glom)[rownames(sigtabp), ], "matrix"))
 View(sigtabp)
 ```
 
-Use DESeq2 to test for differential abundance of Family-level assignments between SP and NP strains.
+Use DESeq2 to test for differential abundance of family-level assignments between SP and NP strains.
 
 ```{r}
 fam_glom <- tax_glom(SPNP, taxrank="Rank5")
@@ -281,11 +295,11 @@ error <- sigtabf$lfcSE
 
 sigtabf$Rank5 = factor(as.character(sigtabf$Rank5), levels=names(x))
 
-ggplot(sigtabf, aes(x=Rank5, y=log2FoldChange, color=Rank5)) + 
-                      geom_errorbar(aes(ymin = log2FoldChange + 
-                      error, ymax = log2FoldChange - error), width = 0.2, colour = "black") + 
-                      geom_point(size=5) + 
-                      theme(axis.text.x = element_text(angle = -90, hjust = 0, vjust=0.5))
+p <- ggplot(sigtabf, aes(x = log2FoldChange, y = Rank5, color = Rank5)) + 
+                    geom_errorbarh(aes(xmin = log2FoldChange + error, xmax = log2FoldChange - error), height = 0.1, colour = "black") + 
+                    geom_point(size=5) + 
+                    theme(axis.text.x = element_text(angle = 90, hjust = 0, vjust=0.5)) +
+                    theme(aspect.ratio = 16 / 9)
 ```
 
 Use DESeq2 to test for differential abundance of Genus-level assignments between SP and NP strains.
@@ -298,7 +312,7 @@ res = results(SPvNP.gen, cooksCutoff = FALSE)
 alpha = 0.05
 sigtabg = res[which(res$padj < alpha), ]
 sigtabg = cbind(as(sigtabg, "data.frame"), as(tax_table(gen_glom)[rownames(sigtabg), ], "matrix"))
-View(sigtab)
+View(sigtabg)
 ```
 
 Plot genus level differential abundance
@@ -322,7 +336,7 @@ ggplot(sigtab, aes(x=Rank6, y=log2FoldChange, color=Rank6)) +
   theme(axis.text.x = element_text(angle = -90, hjust = 0, vjust=0.5))
 ```
 
-# Supplementary bar plots
+### Supplementary bar plots
 
 ```{r}
 phy_glom <- tax_glom(SPNP, taxrank="Rank2")
@@ -349,7 +363,7 @@ Note: In the sample metadata culture "a" = strain 185. "b" = strain 362. "c" = s
 subtemporal <- subset_samples(biom, series=="y")
 ```
 
-# Alpha diversity
+### Alpha diversity
 
 Multiple rarify (100 replications) to minimum read depth across samples to compute alpha diversity statistics (richness, diversity)
 
@@ -392,7 +406,7 @@ diversity_stats.temp <- data.frame(SampleID.temp, mean2.temp, sd2.temp, Sampleda
 diversity_stats.temp
 ```
 
-# Alpha statistics
+### Alpha statistics
 
 Run above chunk of code, collect the alpha diversity metrics for each strain, and perform non-parametric multiple comparisons to look for differences. Note: a = strain 185, b = strain 362, c = strain M.fav
 
@@ -422,7 +436,7 @@ dunnTest(mean2.temp ~ Sampledata.temp, data = be)
 dunnTest(mean2.temp ~ Sampledata.temp, data = ce)
 ```
 
-# Supplementary Barplot 
+### Supplementary Barplot 
 
 Plot differences in alpha diversity across all phases
 
@@ -464,7 +478,7 @@ plot_ordination(subtemptrans, brayordtranstemp, color="phase", shape="phase")  +
   geom_point(size = 4)
 ```
 
-# Supplementary heatmaps
+### Supplementary heatmaps
 
 Visualise these phase changes with a heatmap.
 
@@ -499,15 +513,15 @@ plot(beta3)
 First model (phase only) does not detect differences. Constrain permutations to be nested within each culture to detect differences in phase specific to each culture.
 
 ```{r echo=TRUE, tidy=TRUE, tidy.opts=list(width.cutoff=60)}
-adonis(formula = subtemptransbray ~ phase, data = df)
+adonis2(formula = subtemptransbray ~ phase, data = df)
 
-adonis(formula = subtemptransbray ~ culture/phase, data = df, strata = df$culture)
+adonis2(formula = subtemptransbray ~ culture/phase, data = df, strata = df$culture)
 
 permutest(beta2)
 permutest(beta3)
 ```
 
-# Differential abundance
+### Differential abundance
 
 Use DESeq2 to look for common genera that change through time across all three SP strains sampled in series. Note: Positive Log2 foldchange values represent higher abundance in pre vs active (first test), and then higher abundance in active vs post (second test). Negative values represent the opposite.
 
@@ -585,7 +599,7 @@ dp <- ggplot(data=d2, aes(x=phase, y=abund)) +
 dp
 ```
 
-# Supplementary differential abund
+### Supplementary differential abund
 
 Plotting differentially abundant across phases including culture as factor in design.
 
