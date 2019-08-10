@@ -1,0 +1,154 @@
+---
+title: "Xeq and Chl: Symbiodinium-bacteria interactions support the formation of calcifying biofilms""
+author: "MNitschke"
+date: "100819"
+output: html_document
+---
+
+# Libraries
+
+```{r}
+library(readr)
+library(tidyr)
+library(stringr)
+library(ggplot2)
+library(scales)
+library(dplyr)
+library(broom)
+library(FSA)
+```
+
+# Import acidic polysacharride and Chl data
+
+```{r}
+XC <- read.table(file = 'XeqChl.txt', sep = '\t', header = TRUE)
+```
+
+# Figure 5 part 2
+
+Plot
+
+```{r}
+XCsis <- filter(XC, sister != "n")
+XCsis <- filter(XCsis, sister != "sp64")
+
+p <- ggplot(data = XCsis, aes(x = time, group = identity)) +
+      geom_line(aes(y = chl)) +
+      geom_line(aes(y = xeq/200)) +
+      geom_point(aes(y = chl, colour = "chl", shape = identity), size = 3.5) +
+      geom_point(aes(y = xeq/200, colour = "xeq", shape = identity), size = 3.5) +
+      geom_errorbar(mapping = aes(x = time, y = chl, ymin = chl - chlse, ymax = chl + chlse), width = 0.2) +
+      geom_errorbar(mapping = aes(x = time, y = xeq/200, ymin = (xeq/200) - (xeqse/200), ymax = (xeq/200) + (xeqse/200)), width = 0.2) +
+      scale_y_continuous(sec.axis = sec_axis(~.*200, name = "Xeq")) +
+      scale_color_manual(values = c(chl = "#00F484", xeq = "#35A2FF")) +
+      facet_wrap(~sister, nrow = 3, ncol = 9) +
+      theme(aspect.ratio = 1, panel.background = element_rect(fill = "white"), panel.grid.major = element_blank(), panel.grid.minor = element_blank())
+      
+p
+```
+
+# Supplementary figure S7
+
+Chl a OD (absorbance in vivo 675 nm) and acidic polysacharrides (Xeq ug) through time for SP and NP cultures.
+
+```{r}
+XC$order <- factor(XC$culture, levels = unique(XC$culture))
+
+p <- ggplot(data = XC, aes(x = time)) +
+      geom_line(aes(y = chl)) +
+      geom_line(aes(y = xeq/200)) +
+      geom_point(aes(y = chl, colour = "chl"),size = 2) +
+      geom_point(aes(y = xeq/200, colour = "xeq"),size = 2) +
+      geom_errorbar(mapping = aes(x = time, y = chl, ymin = chl - chlse, ymax = chl + chlse), width = 0.1) +
+      geom_errorbar(mapping = aes(x = time, y = xeq/200, ymin = (xeq/200) - (xeqse/200), ymax = (xeq/200) + (xeqse/200)), width = 0.1) +
+      scale_y_continuous(sec.axis = sec_axis(~.*200, name = "Xeq")) +
+      scale_color_manual(values = c(chl = "#00F484", xeq = "#35A2FF")) +
+      facet_wrap(~order, nrow = 5, ncol = 6) +
+      theme(aspect.ratio = 1, panel.background = element_rect(fill = "white"), panel.grid.major = element_blank(), panel.grid.minor = element_blank())
+      
+p
+```
+
+# Linear model Acidic polysacharrides (ug Xeq) vs Chl (OD 675 nm)
+
+## Suplementary tables S11 and S12
+
+```{r}
+fitlm = XC %>% group_by(culture) %>% do(model = lm(xeq ~ chl, data = .))
+fitlm %>% tidy(model)
+fitlm %>% glance(model)
+fitlm %>% augment(model)
+```
+
+# Supplementary figure S9
+
+Chl a OD (absorbance in vivo 675 nm) vs acidic polysacharrides (Xeq ug) through time for SP and NP cultures.
+
+```{r}
+theme_set(theme_bw())
+p <- ggplot(data=XC, aes(x = chl, y=xeq, sample = culture)) +
+      geom_smooth(method = "lm", se=TRUE, color="red", formula = y ~ x) +
+      geom_line(aes(x = chl, y = xeq)) +
+      geom_point(aes(x = chl, y = xeq), size = 2, shape = 21, fill = "white") +
+      geom_errorbar(mapping = aes(x = chl, y = xeq, ymin = xeq - xeqse, ymax = xeq + xeqse),width=0.01) +
+      geom_errorbarh(mapping = aes(x = chl, y = xeq, xmin = chl - chlse, xmax = chl + chlse, height=2)) +
+      facet_wrap(~order, nrow = 5, ncol = 6) +
+      theme(aspect.ratio = 1)
+      
+p
+```
+
+# Import bacterial biofilm and acidic polysacharride data
+
+```{r}
+XB <- read.table(file = 'xeqbiofilm.txt', sep = '\t', header = TRUE)
+```
+
+# Xeq vs biofilm
+
+Perform non-parametric Kruskal-Wallis test and dunnTest for post-hoc comparisons
+
+```{r}
+xeqK <- kruskal.test(xeq ~ strain, data = XB)
+biofilmK <- kruskal.test(biofilm ~ strain, data = XB)
+
+xeqD <- dunnTest(xeq ~ strain, data = XB)
+biofilmD <- dunnTest(biofilm ~ strain, data = XB)
+```
+
+# Figure 6
+
+```{r}
+sel <- XB %>% select(genus, species, strain, xeq, biofilm)
+
+XBmse = sel %>%
+    group_by(genus,species,strain) %>%
+    summarize(xeq.m = mean(xeq), xeq.se = sd(xeq)/sqrt(6), biofilm.m = mean(biofilm), biofilm.se = sd(biofilm)/sqrt(6))
+
+p <- ggplot(data=XBmse, aes(x=biofilm.m, y=xeq.m)) +
+      geom_errorbar(mapping = aes(x = biofilm.m, y = xeq.m, ymin = xeq.m-xeq.se, ymax = xeq.m + xeq.se),width = 0.01) +
+      geom_errorbarh(mapping = aes(x = biofilm.m, y = xeq.m, xmin=biofilm.m-biofilm.se, xmax=biofilm.m+biofilm.se),height=0.8) +
+      geom_point(aes(colour = species), size = 6) +
+      geom_text(aes(label = strain), vjust = 0, nudge_y = -5) +
+      theme(aspect.ratio = 1, panel.background = element_rect(fill = "white"), panel.grid.major = element_blank(), panel.grid.minor = element_blank())
+
+p
+```
+
+# Supplementary methods figure SM1: calibration curve
+
+Standard curve of Xanthan Gum (?g) vs optical density (absorbance 787nm) of acidified (80% H2SO4) alcian blue following Claquin et al (2008) Aquatic Microbial Ecology.
+
+```{r}
+fit <- lm(a787 ~ Xug, data = XC)
+
+summary(fit)
+
+p <- ggplot(data=XC, aes(x=Xug, y=a787)) +
+      geom_point(size = 2) +
+      geom_smooth(method = "lm", se=TRUE, color="red", formula = y ~ x) +
+      theme(aspect.ratio = 1, panel.background = element_rect(fill = "white"), panel.grid.major = element_blank(), panel.grid.minor = element_blank())
+
+p
+```
+

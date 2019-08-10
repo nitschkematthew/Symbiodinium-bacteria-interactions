@@ -1,14 +1,10 @@
 ---
-title: "Tax4Fun: Symbiodinium-bacteria interactions and functions supporting the formation of calcifying biofilms"
+title: "Tax4Fun"
 author: "MNitschke"
-date: "19 April 2018"
+date: "100819"
 output: html_document
 keep_md: TRUE
 ---
-
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
 
 # Libraries
 
@@ -19,22 +15,27 @@ library(data.table)
 library(gplots)
 library(multtest)
 library(tibble)
-library(dplyr)
 library(phyloseq)
 library(tidyr)
 library(stringr)
 library(ggplot2)
 library(scales)
+library(dplyr)
 ```
 
 # Import data 
 
 Converted the biom format file to tsv format for compatibility with Tax4Fun using the BIOM-FORMAT package. This output contains the OTUs assigned to the Silva version 123 reference database so taxa names match Kegg Organisms of pre-computed data matricies in Tax4Fun.
 
-TSV check. Check the taxonomy levels. Tax4fun requires a very specific table layout. And a cell for every taxonomic rank, even if it is empty. Otherwise the OTU will be disregarded from the composite metagenome.
+Check otu_table132.123.tsv formatting!!! Tax4fun requires a very specific table layout that is not documented in the publication. If you convert your .biom formated OTU table to .tsv using the BIOM format tool using something like:
+
+biom convert -i otu_table.biom -o otu_table.tsv --to-tsv --header-key taxonomy
+
+
+...then the cell delimiters (likely ";") for OTUs that have not been assigned to the species level (likely to be the majority of OTUs) will not be parsed by Tax4Fun. Each taxonomy must have exactly 6 x ; delimiters, otherwise the OTU taxonomy will not be detected during the matching of SILVA IDs to KEGG organisms. Below is some code to explore a .tsv otu table and add the correct number of delimiters.
 
 ```{r}
-explore <- read.table(file = 'D:/Post-Doc/Symbiolite/Microbiome/Sequencing_data/Vsearch outputs/uclust_assigned_taxonomy123/otu_table132.123test.tsv', sep = '\t')
+explore <- read.table(file = 'otu_table132.123.tsv', sep = '\t')
 
 str_count(explore$V44, ";") # multiple taxonomic levels are empty. All values should = 6
 
@@ -62,29 +63,29 @@ t[1,2:44] <- ""
 
 str_count(t$taxonomy, ";") # Now check all taxonomic levels are occupied by a string. Should contain 6 x ";" in every cell
 
-write.table(t,"Tax4Fun_OTU.tsv",sep="\t", row.names = FALSE, col.names = FALSE, quote = FALSE)
+write.table(t,"Tax4Fun_OTU.tsv", sep="\t", row.names = FALSE, col.names = FALSE, quote = FALSE)
 ```
 
 # Inference using Tax4Fun
 
-Use Tax4Fun to predict the functional and metabolic capabilities of microbial communities based on 16S data samples. Suppress the option to normalise by copy number due to recommendation by Louca et al (2018) Microbiome.
+Use Tax4Fun to predict the functional and metabolic capabilities of microbial communities based on 16S data samples
 
 ```{r}
-reshape <- importQIIMEData("D:/Post-Doc/Symbiolite/Microbiome/Sequencing_data/Vsearch outputs/uclust_assigned_taxonomy123/Tax4Fun_OTU.tsv")
+reshape <- importQIIMEData("Tax4Fun_OTU.tsv")
 directory <- "D:/Post-Doc/Symbiolite/Microbiome/Sequencing_data/Vsearch outputs/uclust_assigned_taxonomy123/SILVA123/"
 
-KO <- Tax4Fun(reshape, directory, normCopyNo = FALSE)
+KO <- Tax4Fun(reshape, directory, normCopyNo = TRUE)
 
 Tax4FunProfile <- KO$Tax4FunProfile
 Tax4FunProfile <- data.frame(t(KO$Tax4FunProfile))
 
-path <- Tax4Fun(reshape, directory, normCopyNo = FALSE, fctProfiling = FALSE)
+path <- Tax4Fun(reshape, directory, normCopyNo = TRUE, fctProfiling = FALSE)
 
 Tax4FunPath <- path$Tax4FunProfile
 Tax4FunPath <- data.frame(t(path$Tax4FunProfile))
 ```
 
-# Supplementary table 
+## Supplementary file: Tax4Fun profiles and paths
 
 Write to csv for supplementary tables in manuscript
 
@@ -93,7 +94,7 @@ write.table(Tax4FunProfile,"Tax4FunProfile_Export.csv",sep="\t")
 write.table(Tax4FunPath,"Tax4FunPath_Export.csv",sep="\t")
 ```
 
-# FTUs
+## Supplementary file: Tax4Fun FTUs
 
 FTUs are the Fraction of OTUs that could not be mapped to KEGG organisms.
 
@@ -101,9 +102,9 @@ FTUs are the Fraction of OTUs that could not be mapped to KEGG organisms.
 path$FTU
 ```
 
-# Supplementary table Tax4Fun not matched
+## Supplementary file: Taxa (otus) not predicted by Tax4Fun
 
-Find which OTUs are not in the Kegg organism Tax4Fun database. 
+Find which OTUs are not in the Kegg organism Tax4Fun database (for some reason Tax4Fun does not provide this as output) 
 Retrieve the Tax4fun hidden function using getAnywhere(importTax4FunReferenceData)
 
 ```{r}
@@ -168,26 +169,9 @@ full <- row.names(reshape$otuTable)
 Notpredicted <- setdiff(full, commonOTUs) # List of taxa that will not contribute to metagenomic inference
 ```
 
-# Not predicted taxa percentages
-
-Check which taxa are abundant and also not predicted.
-
-```{r}
-new <- reshape$otuTable
-total <- sum(new)
-new$Sum <- rowSums(new)
-comdat <- data.frame(Notpredicted)
-new <- tibble::rownames_to_column(new)
-new <- setnames(new, 1:1, c("Notpredicted"))
-NP <- left_join(comdat, new, by = "Notpredicted")
-vals <- (NP$Sum/total)*100
-names <- NP$Notpredicted
-percentmissing <- data.frame(names, vals)
-```
-
 # Covert Paths and KO profiles to phyloseq objects
 
-Paths first
+## Paths first
 
 ```{r}
 tab <- rownames_to_column(Tax4FunPath, var = "OTU")
@@ -202,7 +186,7 @@ rownames(taxonomy) <- taxonomy[,1]
 taxonomy <- taxonomy[,-1]
 colnames(taxonomy)[1] <- "path"
 
-map <- read.table("D:/Post-Doc/Symbiolite/Microbiome/Sequencing_data/Vsearch outputs/uclust_assigned_taxonomy123/map.txt", header = TRUE)
+map <- read.table("map.txt", header = TRUE)
 
 sampdat <- sample_data(map)
 rownames(sampdat) <- sampdat$sample
@@ -217,7 +201,7 @@ OTUtab <- otu_table(tab3, taxa_are_rows = TRUE)
 phylop <- merge_phyloseq(OTUtab, sampdat, taxonomy)
 ```
 
-KO's next
+## KO's next
 
 ```{r}
 tab <- rownames_to_column(Tax4FunProfile, var = "OTU")
@@ -232,12 +216,11 @@ rownames(taxonomy) <- taxonomy[,1]
 taxonomy <- taxonomy[,-1]
 colnames(taxonomy)[1] <- "KO"
 
-map <- read.table("D:/Post-Doc/Symbiolite/Microbiome/Sequencing_data/Vsearch outputs/uclust_assigned_taxonomy123/map.txt", header = TRUE)
+map <- read.table("map.txt", header = TRUE)
 
 sampdat <- sample_data(map)
 rownames(sampdat) <- sampdat$sample
 sampdat$sample <- NULL
-
 
 tab3 <- tab2
 tab3$Rank1 <- NULL
@@ -246,6 +229,19 @@ tab3[,1] <- NULL
 OTUtab <- otu_table(tab3, taxa_are_rows = TRUE)
 
 phyloKO <- merge_phyloseq(OTUtab, sampdat, taxonomy)
+```
+
+Add more sample metadata to the phyloseq objects about clade and ITS2 type
+
+```{r}
+ITS2 <- c("A2","A2","B1","B1","A2","A2","A2","A2","A2","A2","A2","A2","A2","B1","A1","A1","A1","A1","A1","A1","A1","A1","A1","A4","B1","A2","B1","A12","A2","A2","A2","A2","A2","A2","A2","A2","A2","B1","B1","B1","B1","B1")
+clade <- c("A","A","B","B","A","A","A","A","A","A","A","A","A","B","A","A","A","A","A","A","A","A","A","A","B","A","B","A","A","A","A","A","A","A","A","A","A","B","B","B","B","B")
+
+sample_data(phylop)$ITS2 <- ITS2
+sample_data(phylop)$clade <- clade
+
+sample_data(phyloKO)$ITS2 <- ITS2
+sample_data(phyloKO)$clade <- clade
 ```
 
 # SP vs NP
@@ -257,16 +253,19 @@ svnp <- subset_samples(phylop, time=="n")
 svnko <- subset_samples(phyloKO, time=="n")
 ```
 
-# Figure 2 part 1: Ordinate
+## Figure 2a part 1: Unconstrained ordination
 
 SP vs NP ordination using a Bray-Curtis matrix and PCoA ordination.
 
 ```{r}
 brayp <- ordinate(svnp, "PCoA", "bray")
-plot_ordination(svnp, brayp, color="state", shape="state")  + geom_text(aes(label = sample_names(svnp)), vjust = 1.5) + geom_point(size = 4) #+ scale_x_reverse()
+plot_ordination(svnp, brayp, color="state", shape="clade") + 
+  geom_text(aes(label = sample_names(svnp)), vjust = 1.5) + 
+  geom_point(size = 4) + 
+  theme(aspect.ratio = 1)
 ```
 
-# Figure 2 part 2
+## Figure 2a part 2
 
 Grab centroids and vectors from samples to centroids to overlay on part 1
 
@@ -275,22 +274,24 @@ bray <- phyloseq::distance(svnp, method = "bray")
 
 sampledf <- data.frame(sample_data(svnp))
 
-beta <- betadisper(bray, sampledf$state)
+betastate <- betadisper(bray, sampledf$state)
 
-plot(beta)
+plot(betastate)
 ```
 
-# Path PERMANOVA and betadisper
+## Path PERMANOVA and betadisper
+
+### Supplementary table S5:
 
 Run script chunk above first and then compute statistics and homogeneity of dispersions test
 
 ```{r}
-adonis(bray ~ state, data = sampledf)
+adonis2(bray ~ state + clade, by = "margin", data = sampledf)
 
-permutest(beta)
+anova(betastate)
 ```
 
-# Path differential abundance using MT
+## Supplementary file: Tax4Fun Path differential abundance using MT
 
 ```{r}
 PMT <- mt(svnp, classlabel = "state", minPmaxT = "maxT")
@@ -301,143 +302,42 @@ sigpath <- setnames(sigpath, 1:1, c("KO"))
 View(sigpath)
 ```
 
-# Calculate % completeness of each pathway.
+## Calculate % completeness of pathways that are of potential relevance to the study.
 
-Some non-elegant code for calculating the percentage of the reference-pathway completeness. Runs quickly but could be optimised to apply through pathko columns. All KOs of each pathway were retrieved from the reference pathway page at https://www.genome.jp/dbget-bin/www_bget?XXXXXXX
+All KOs of each pathway were retrieved from the reference pathway page at https://www.genome.jp/dbget-bin/www_bget?ko#####
 
 ```{r}
-pathko <- read.table(file = 'D:/Post-Doc/Symbiolite/Microbiome/Sequencing_data/Vsearch outputs/uclust_assigned_taxonomy123/T4F_path_KOs.txt', sep = '\t', header = TRUE, strip.white = TRUE)
+targetpaths <- c(sigpath$KO)
 
-dfko <- psmelt(svnko)
+refpaths <- read.table(file = 'reference_path_KO.txt', sep = '\t', header = TRUE, strip.white = TRUE)
+refpaths[refpaths==""] <- NA
 
-temp <- dfko[dfko$OTU %in% pathko$ko00561,]
-sel <- temp %>% select(OTU, Abundance, state, KO)
-  l <- sel %>% group_by(OTU,KO,state) %>% summarize(abund = mean(Abundance))
-  e <- length(which(pathko$ko00561 != ""))
-  o <- nrow(l)/2
-  ko00561 <- (o/e)*100
+completeness <- function(pathls, phyloseqpath, phyloseqko, refpaths){
+  subls <- as.matrix(subset(refpaths, select = pathls)) # subset reference pathway file (KO's), headed by pathways (ko's) to match query list
+  pkos <- as.matrix(rownames(tax_table(phyloseqko))) # get a list of all KO's returned by Tax4Fun from phyloseq object
+  pkodf <- as.matrix(pkos)
+  common <- apply(subls, 2, function(x) intersect(x, pkodf)) # intersect every reference pathway KO complete list against what Tax4Fun retrieved
+  found <- apply(subls,2, function(x) length(which(!is.na(x)))) # get a count of orthologs for each pathway
+  pc <- (lengths(common) / found) * 100 # calculate % orthologs of reference pathway present in Tax4Fun output
+  ko <- pathls
+  df <- data.frame(ko, pc)
+  pathdf <- as.data.frame(tax_table(phyloseqpath))
+  pathdf <- rownames_to_column(pathdf, var = "ko")
+  output <- left_join(df, pathdf, by = "ko")
+  return(output)
+}
 
-temp <- dfko[dfko$OTU %in% pathko$ko00564,]
-sel <- temp %>% select(OTU, Abundance, state, KO)
-  l <- sel %>% group_by(OTU,KO,state) %>% summarize(abund = mean(Abundance))
-  e <- length(which(pathko$ko00564 != ""))
-  o <- nrow(l)/2
-  ko00564 <- (o/e)*100
-  
-temp <- dfko[dfko$OTU %in% pathko$ko04972,]
-sel <- temp %>% select(OTU, Abundance, state, KO)
-  l <- sel %>% group_by(OTU,KO,state) %>% summarize(abund = mean(Abundance))
-  e <- length(which(pathko$ko04972 != ""))
-  o <- nrow(l)/2
-  ko04972 <- (o/e)*100
-  
-temp <- dfko[dfko$OTU %in% pathko$ko05111,]
-sel <- temp %>% select(OTU, Abundance, state, KO)
-  l <- sel %>% group_by(OTU,KO,state) %>% summarize(abund = mean(Abundance))
-  e <- length(which(pathko$ko05111 != ""))
-  o <- nrow(l)/2
-  ko05111 <- (o/e)*100
-  
-temp <- dfko[dfko$OTU %in% pathko$ko02030,]
-sel <- temp %>% select(OTU, Abundance, state, KO)
-  l <- sel %>% group_by(OTU,KO,state) %>% summarize(abund = mean(Abundance))
-  e <- length(which(pathko$ko02030 != ""))
-  o <- nrow(l)/2
-  ko02030 <- (o/e)*100
-  
-temp <- dfko[dfko$OTU %in% pathko$ko02060,]
-sel <- temp %>% select(OTU, Abundance, state, KO)
-  l <- sel %>% group_by(OTU,KO,state) %>% summarize(abund = mean(Abundance))
-  e <- length(which(pathko$ko02060 != ""))
-  o <- nrow(l)/2
-  ko02060 <- (o/e)*100
-  
-temp <- dfko[dfko$OTU %in% pathko$ko04080,]
-sel <- temp %>% select(OTU, Abundance, state, KO)
-  l <- sel %>% group_by(OTU,KO,state) %>% summarize(abund = mean(Abundance))
-  e <- length(which(pathko$ko02060 != ""))
-  o <- nrow(l)/2
-  ko04080 <- (o/e)*100
-  
-temp <- dfko[dfko$OTU %in% pathko$ko01054,]
-sel <- temp %>% select(OTU, Abundance, state, KO)
-  l <- sel %>% group_by(OTU,KO,state) %>% summarize(abund = mean(Abundance))
-  e <- length(which(pathko$ko01054 != ""))
-  o <- nrow(l)/2
-  ko01054 <- (o/e)*100
-  
-temp <- dfko[dfko$OTU %in% pathko$ko00901,]
-sel <- temp %>% select(OTU, Abundance, state, KO)
-  l <- sel %>% group_by(OTU,KO,state) %>% summarize(abund = mean(Abundance))
-  e <- length(which(pathko$ko00901 != ""))
-  o <- nrow(l)/2
-  ko00901 <- (o/e)*100
-  
-temp <- dfko[dfko$OTU %in% pathko$ko00300,]
-sel <- temp %>% select(OTU, Abundance, state, KO)
-  l <- sel %>% group_by(OTU,KO,state) %>% summarize(abund = mean(Abundance))
-  e <- length(which(pathko$ko00300 != ""))
-  o <- nrow(l)/2
-  ko00300 <- (o/e)*100
-  
-temp <- dfko[dfko$OTU %in% pathko$ko00360,]
-sel <- temp %>% select(OTU, Abundance, state, KO)
-  l <- sel %>% group_by(OTU,KO,state) %>% summarize(abund = mean(Abundance))
-  e <- length(which(pathko$ko00360 != ""))
-  o <- nrow(l)/2
-  ko00360 <- (o/e)*100
-  
-temp <- dfko[dfko$OTU %in% pathko$ko00906,]
-sel <- temp %>% select(OTU, Abundance, state, KO)
-  l <- sel %>% group_by(OTU,KO,state) %>% summarize(abund = mean(Abundance))
-  e <- length(which(pathko$ko00906 != ""))
-  o <- nrow(l)/2
-  ko00906 <- (o/e)*100
-  
-temp <- dfko[dfko$OTU %in% pathko$ko00190,]
-sel <- temp %>% select(OTU, Abundance, state, KO)
-  l <- sel %>% group_by(OTU,KO,state) %>% summarize(abund = mean(Abundance))
-  e <- length(which(pathko$ko00190 != ""))
-  o <- nrow(l)/2
-  ko00190 <- (o/e)*100
-  
-temp <- dfko[dfko$OTU %in% pathko$ko04961,]
-sel <- temp %>% select(OTU, Abundance, state, KO)
-  l <- sel %>% group_by(OTU,KO,state) %>% summarize(abund = mean(Abundance))
-  e <- length(which(pathko$ko04961 != ""))
-  o <- nrow(l)/2
-  ko04961 <- (o/e)*100
-  
-temp <- dfko[dfko$OTU %in% pathko$ko01053,]
-sel <- temp %>% select(OTU, Abundance, state, KO)
-  l <- sel %>% group_by(OTU,KO,state) %>% summarize(abund = mean(Abundance))
-  e <- length(which(pathko$ko01053 != ""))
-  o <- nrow(l)/2
-  ko01053 <- (o/e)*100
-  
-temp <- dfko[dfko$OTU %in% pathko$ko04115,]
-sel <- temp %>% select(OTU, Abundance, state, KO)
-  l <- sel %>% group_by(OTU,KO,state) %>% summarize(abund = mean(Abundance))
-  e <- length(which(pathko$ko04115 != ""))
-  o <- nrow(l)/2
-  ko04115 <- (o/e)*100
-
-subp <- subset(pathko, select=c("ko00561","ko00564","ko04972","ko05111","ko02030","ko02060","ko04080","ko01054","ko00901","ko00300","ko00360","ko00906","ko00190","ko04961","ko01053","ko04115"))
-KO <- colnames(subp)
-completeness <- c(ko00561,ko00564,ko04972,ko05111,ko02030,ko02060,ko04080,ko01054,ko00901,ko00300,ko00360,ko00906,ko00190,ko04961,ko01053,ko04115)
-PC <- data.frame(KO, completeness)
-PC <- merge(PC, sigpath, by = c("KO"))
-View(PC)
+completeness(targetpaths, svnp, svnko, refpaths)
 ```
 
-# Figure 2 part 3
+## Figure 2b
 
 Plot pathways that are significantly different across SP vs NP strains and are of relevance to the study.
 
 ```{r}
 df <- psmelt(svnp)
 
-avgs <- df %>% select(OTU, Abundance, state, path)
+avgs <- df %>% dplyr::select(OTU, Abundance, state, path)
 
 d = avgs %>%
     group_by(OTU,path,state) %>%
@@ -449,7 +349,7 @@ d = d %>%
 d$path <- as.factor(d$path)
 d$state <- as.factor(d$state)
 
-d2 <- d %>% filter(str_detect(path, "Glycerolipid metabolism|Bacterial chemotaxis|Vibrio cholerae pathogenic cycle|Phosphotransferase|siderophore|Glycerophospholipid|Phenylalanine metabolism|Carotenoid"))
+d2 <- d %>% filter(str_detect(path, "Bacterial chemotaxis|Vibrio cholerae pathogenic cycle|Phosphotransferase|siderophore"))
 
 dp <- ggplot(data=d2, aes(x=state, y=abund)) + 
   geom_bar(stat = "identity") + 
@@ -461,198 +361,7 @@ dp <- ggplot(data=d2, aes(x=state, y=abund)) +
 dp
 ```
 
-# Supplmentary pathway comparison plot
-
-Plot significantly different pathways SP vs NP
-
-```{r}
-dplot <- merge(d, sigpath, by = "path")
-  
-p <- ggplot(data=dplot, aes(x=abund, y=path, colour = state)) +
-  geom_point(size = 3) +
-  geom_errorbarh(aes(xmin=abund-se, xmax=abund+se), height = 0.2) +
-  theme(axis.text.y = element_text(angle = 0, hjust = 1, vjust=0.2)) +
-  scale_x_continuous(trans = "log") +
-  theme(aspect.ratio = 16/9)
-
-p
-```
-
-# Supplementary plot
-
-Plot profiles to contain orthologs from Glycerolipid metabolism pathway (ko00561).
-
-```{r}
-biofilmko <- read.table(file = 'D:/Post-Doc/Symbiolite/Microbiome/Sequencing_data/Vsearch outputs/uclust_assigned_taxonomy123/T4F_path_KOs.txt', sep = '\t', header = TRUE)
-
-dfko <- psmelt(svnko)
-
-biofilmko$ko00561 <- as.character(biofilmko$ko00561)
-dfko$OTU <- as.character(dfko$OTU)
-
-dfko <- dfko[dfko$OTU %in% biofilmko$ko00561,]
-
-dfkosel <- dfko %>% select(OTU, Abundance, state, KO)
-
-d = dfkosel %>%
-    group_by(OTU,KO,state) %>%
-    summarize(abund = mean(Abundance), sd = sd(Abundance))
-
-d = d %>%
-  mutate(se = ifelse(state=="SP", sd/sqrt(17),sd/sqrt(7)))
-
-d$KO <- as.factor(d$KO)
-d$state <- as.factor(d$state)
-
-theme_set(theme_bw())
-
-dp <- ggplot(data=d, aes(x=KO, y=abund, colour = state)) + 
-  geom_point(size = 4) + 
-  geom_errorbar(aes(ymin=abund-se, ymax=abund+se)) + 
-  theme(axis.text.x = element_text(angle = -90, hjust = 0, vjust=0.5))# +
-  scale_y_continuous(trans='log')
-
-dp
-```
-
-Plot profiles to contain orthologs from Biofilm pathway (ko05111, Vibrio model pathway).
-
-```{r}
-dfko <- psmelt(svnko)
-
-biofilmko$ko05111 <- as.character(biofilmko$ko05111)
-dfko$OTU <- as.character(dfko$OTU)
-
-dfko <- dfko[dfko$OTU %in% biofilmko$ko05111,]
-
-dfkosel <- dfko %>% select(OTU, Abundance, state, KO)
-
-d = dfkosel %>%
-    group_by(OTU,KO,state) %>%
-    summarize(abund = mean(Abundance), sd = sd(Abundance))
-
-d = d %>%
-  mutate(se = ifelse(state=="SP", sd/sqrt(17),sd/sqrt(7)))
-
-d$KO <- as.factor(d$KO)
-d$state <- as.factor(d$state)
-
-theme_set(theme_bw())
-
-dp <- ggplot(data=d, aes(x=KO, y=abund, colour = state)) + 
-  geom_point(size = 4) + 
-  geom_errorbar(aes(ymin=abund-se, ymax=abund+se)) + 
-  theme(axis.text.x = element_text(angle = -90, hjust = 0, vjust=0.5)) +
-  scale_y_continuous(trans='log')
-
-dp
-```
-
-Plot profiles to contain orthologs from Bacterial chemotaxis pathway (ko02030).
-
-```{r}
-dfko <- psmelt(svnko)
-
-biofilmko$ko02030 <- as.character(biofilmko$ko02030)
-dfko$OTU <- as.character(dfko$OTU)
-
-dfko <- dfko[dfko$OTU %in% biofilmko$ko02030,]
-
-dfkosel <- dfko %>% select(OTU, Abundance, state, KO)
-
-d = dfkosel %>%
-    group_by(OTU,KO,state) %>%
-    summarize(abund = mean(Abundance), sd = sd(Abundance))
-
-d = d %>%
-  mutate(se = ifelse(state=="SP", sd/sqrt(17),sd/sqrt(7)))
-
-d$KO <- as.factor(d$KO)
-d$state <- as.factor(d$state)
-
-theme_set(theme_bw())
-
-dp <- ggplot(data=d, aes(x=KO, y=abund, colour = state)) + 
-  geom_point(size = 4) + 
-  geom_errorbar(aes(ymin=abund-se, ymax=abund+se)) + 
-  theme(axis.text.x = element_text(angle = -90, hjust = 0, vjust=0.5)) +
-  scale_y_continuous(trans='log')
-
-dp
-```
-
-Plot profiles that contain orthologs from the Phosphotransferase system (PTS) pathway (ko02060).
-
-```{r}
-dfko <- psmelt(svnko)
-
-biofilmko$ko02060 <- as.character(biofilmko$ko02060)
-dfko$OTU <- as.character(dfko$OTU)
-
-dfko <- dfko[dfko$OTU %in% biofilmko$ko02060,]
-
-dfkosel <- dfko %>% select(OTU, Abundance, state, KO)
-
-d = dfkosel %>%
-    group_by(OTU,KO,state) %>%
-    summarize(abund = mean(Abundance), sd = sd(Abundance))
-
-d = d %>%
-  mutate(se = ifelse(state=="SP", sd/sqrt(17),sd/sqrt(7)))
-
-d$KO <- as.factor(d$KO)
-d$state <- as.factor(d$state)
-
-theme_set(theme_bw())
-
-dp <- ggplot(data=d, aes(x=KO, y=abund, colour = state)) + 
-  geom_point(size = 4) + 
-  geom_errorbar(aes(ymin=abund-se, ymax=abund+se)) + 
-  theme(axis.text.x = element_text(angle = -90, hjust = 0, vjust=0.5)) +
-  scale_y_continuous(trans='log')
-
-dp
-```
-
-# Supplementary KO ordination
-
-```{r}
-brayko <- ordinate(svnko, "PCoA", "bray")
-plot_ordination(svnko, brayko, color="state", shape="state")  + geom_text(aes(label = sample_names(svnp)), vjust = 1.5) + geom_point(size = 4)# + scale_y_reverse()
-```
-
-# Supplementary KO betadisper
-
-Run script chunk above first and then compute statistics and homogeneity of dispersions test
-
-```{r}
-bko <- phyloseq::distance(svnko, method = "bray")
-
-sampledf <- data.frame(sample_data(svnko))
-
-betako <- betadisper(bko, sampledf$state)
-
-plot(betako)
-```
-
-# Supplmentary PERMANOVA and perm test of beta dispersion
-
-```{r}
-adonis(bko ~ state, data = sampledf)
-
-permutest(betako)
-```
-
-# Supplementary KO differential abundance testing
-
-```{r}
-KMTT <- mt(svnko, classlabel = "state", minPmaxT = "maxT")
-alpha = 0.05
-sigMTKO = KMTT[which(KMTT$adjp < alpha), ]
-View(sigMTKO)
-```
-
-# PHASE TRANSITION
+# SP metagenomes through time
 
 Subset to only the data that has pre, active, and post calcifying phases (185, Mf, 362). 
 
@@ -663,19 +372,20 @@ pathtemp <- subset_samples(phylop, series=="y")
 KOtemp <- subset_samples(phyloKO, series=="y")
 ```
 
-# Figure 4 part 1
+## Figure 4a part 1
 
 Ordination of phases according to KEGG pathways
 
 ```{r}
 bpatht <- ordinate(pathtemp, "PCoA", "bray")
 
-plot_ordination(pathtemp, bpatht, color="culture", shape="phase")  + 
+plot_ordination(pathtemp, bpatht, color="phase", shape="culture")  + 
   geom_text(aes(label = sample_names(pathtemp)), vjust = 1.5) + 
-  geom_point(size = 4)
+  geom_point(size = 4)+
+  theme(aspect.ratio = 1)
 ```
 
-# Figure 4 part 2 
+## Figure 4a part 2 
 
 Grab centroids and vectors from samples to centroids to overlay on part 1
 
@@ -689,19 +399,21 @@ beta2 <- betadisper(bpathtr, df$phase)
 plot(beta2)
 ```
 
-# PERMANOVA and betadisper
+## PERMANOVA and betadisper
+
+### Supplementary table S9: 
 
 Constrain permutations to be nested within each culture to detect differences in phase.
 
-```{r echo=TRUE, tidy=TRUE, tidy.opts=list(width.cutoff=60)}
+```{r}
 adonis(formula = bpathtr ~ phase, data = df)
 
 adonis(formula = bpathtr ~ culture/phase, data = df, strata = df$culture)
 
-permutest(beta2) 
+anova(beta2)
 ```
 
-# Path differential abundance using MT
+## Supplmentary file: Tax4fun Path differential abundance through time using MT
 
 ```{r}
 PMTP <- mt(pathtemp, classlabel = "phase", minPmaxT = "maxT", test = "f")
@@ -710,145 +422,4 @@ sigpathp = PMTP[which(PMTP$adjp < alpha), ]
 sigpathp <- tibble::rownames_to_column(sigpathp)
 sigpathp <- setnames(sigpathp, 1:1, c("KO"))
 View(sigpathp)
-```
-
-# Calculate % completeness of interesting pathways
-
-Pathway completeness calculated as above.
-
-```{r}
-pathko <- read.table(file = 'D:/Post-Doc/Symbiolite/Microbiome/Sequencing_data/Vsearch outputs/uclust_assigned_taxonomy123/T4F_path_KOs.txt', sep = '\t', header = TRUE, strip.white = TRUE)
-
-dfko <- psmelt(KOtemp)
-
-temp <- dfko[dfko$OTU %in% pathko$ko00561,]
-sel <- temp %>% select(OTU, Abundance, state, KO)
-  l <- sel %>% group_by(OTU,KO,state) %>% summarize(abund = mean(Abundance))
-  e <- length(which(pathko$ko00561 != ""))
-  o <- nrow(l)
-  ko00561 <- (o/e)*100
-
-temp <- dfko[dfko$OTU %in% pathko$ko05111,]
-sel <- temp %>% select(OTU, Abundance, state, KO)
-  l <- sel %>% group_by(OTU,KO,state) %>% summarize(abund = mean(Abundance))
-  e <- length(which(pathko$ko05111 != ""))
-  o <- nrow(l)
-  ko05111 <- (o/e)*100
-  
-temp <- dfko[dfko$OTU %in% pathko$ko02030,]
-sel <- temp %>% select(OTU, Abundance, state, KO)
-  l <- sel %>% group_by(OTU,KO,state) %>% summarize(abund = mean(Abundance))
-  e <- length(which(pathko$ko02030 != ""))
-  o <- nrow(l)
-  ko02030 <- (o/e)*100
-  
-temp <- dfko[dfko$OTU %in% pathko$ko02060,]
-sel <- temp %>% select(OTU, Abundance, state, KO)
-  l <- sel %>% group_by(OTU,KO,state) %>% summarize(abund = mean(Abundance))
-  e <- length(which(pathko$ko02060 != ""))
-  o <- nrow(l)
-  ko02060 <- (o/e)*100
-  
-temp <- dfko[dfko$OTU %in% pathko$ko01053,]
-sel <- temp %>% select(OTU, Abundance, state, KO)
-  l <- sel %>% group_by(OTU,KO,state) %>% summarize(abund = mean(Abundance))
-  e <- length(which(pathko$ko01053 != ""))
-  o <- nrow(l)
-  ko01053 <- (o/e)*100
-  
-temp <- dfko[dfko$OTU %in% pathko$ko00500,]
-  sel <- temp %>% select(OTU, Abundance, state, KO)
-  l <- sel %>% group_by(OTU,KO,state) %>% summarize(abund = mean(Abundance))
-  e <- length(which(pathko$ko00500 != ""))
-  o <- nrow(l)
-  ko00500 <- (o/e)*100
-  
-temp <- dfko[dfko$OTU %in% pathko$ko02040,]
-  sel <- temp %>% select(OTU, Abundance, state, KO)
-  l <- sel %>% group_by(OTU,KO,state) %>% summarize(abund = mean(Abundance))
-  e <- length(which(pathko$ko02040 != ""))
-  o <- nrow(l)
-  ko02040 <- (o/e)*100
-  
-temp <- dfko[dfko$OTU %in% pathko$ko03070,]
-  sel <- temp %>% select(OTU, Abundance, state, KO)
-  l <- sel %>% group_by(OTU,KO,state) %>% summarize(abund = mean(Abundance))
-  e <- length(which(pathko$ko03070 != ""))
-  o <- nrow(l)
-  ko03070 <- (o/e)*100
-
-subp <- subset(pathko, select=c("ko00561","ko05111","ko02030","ko02060","ko01053","ko00500","ko02040","ko03070"))
-KO <- colnames(subp)
-completeness <- c(ko00561,ko05111,ko02030,ko02060,ko01053,ko00500,ko02040,ko03070)
-PC <- data.frame(KO, completeness)
-PC <- merge(PC, sigpathp, by = c("KO"))
-View(PC)
-```
-
-# Figure 4 part 3
-
-Plot pathways (above) that are significantly different through time and are of relevance to the study.
-
-```{r}
-positions <- c("pre", "active", "post")
-
-df <- psmelt(pathtemp)
-
-avgs <- df %>% select(OTU, Sample, culture, Abundance, path, phase)
-
-d = avgs %>%
-    group_by(Sample,culture,path,phase, OTU) %>%
-    filter(Abundance > 0) %>%
-    summarize(path.abund = sum(Abundance))
-
-d2 = d %>%
-    group_by(OTU,path,phase) %>%
-    summarize(abund = mean(path.abund), se = sd(path.abund)/sqrt(3))
-
-d2$path <- as.factor(d2$path)
-d2$phase <- as.factor(d2$phase)
-
-d3 <- d2
-
-pick_table <- left_join(sigpathp, d3, by = "path") # Only plot the (relevant) paths that have a significant change
-
-d3 <- d3 %>% filter(str_detect(path, "Glycerolipid metabolism|Bacterial chemotaxis|Vibrio cholerae pathogenic cycle|Phosphotransferase|siderophore|Bacterial secretion|Starch|Flagellar"))
-
-theme_set(theme_bw())
-
-dp <- ggplot(data=d3, aes(x=phase, y=abund*100)) + 
-  geom_bar(stat = "identity") + 
-  facet_grid(path~., scales = "free_y") + 
-  geom_errorbar(aes(ymin=abund*100-se*100, ymax=abund*100+se*100), width=0.1) + 
-  scale_x_discrete(limits = positions) + scale_y_continuous() + 
-  theme(aspect.ratio = 1)
-
-dp
-```
-
-# Supplmentary significant pathway plots
-
-```{r}
-sigp <- left_join(sigpathp, d2, by = "path")
-
-p <- ggplot(data=sigp, aes(x=abund, y=path, colour = phase)) +
-  geom_point(size = 2) +
-  geom_errorbarh(aes(xmin=abund-se, xmax=abund+se), height = 0.5) +
-  theme(axis.text.y = element_text(angle = 0, hjust = 1, vjust=0.2)) +
-  scale_color_manual(values =c(active = "green", post = "red", pre = "grey")) +
-  scale_x_continuous(trans = "log2") +
-  theme(aspect.ratio = 16/9)
-
-p
-```
-
-# Supplmentary KO differential abundance using MT
-
-```{r}
-PMTKO <- mt(KOtemp, classlabel = "phase", minPmaxT = "maxT", test = "f")
-alpha = 0.05
-sigKOp = PMTKO[which(PMTKO$adjp < alpha), ]
-sigKOp <- tibble::rownames_to_column(sigKOp)
-sigKOp <- setnames(sigKOp, 1:1, c("pathway"))
-View(sigKOp)
 ```

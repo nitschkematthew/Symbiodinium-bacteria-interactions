@@ -1,0 +1,73 @@
+genus	species	strain	xeq	biofilm
+Pseudoalteromonas	Pseudoalteromonas atlantica	xSym2	46.2639	1.76467
+Pseudoalteromonas	Pseudoalteromonas atlantica	xSym2	52.0926	2.00967
+Pseudoalteromonas	Pseudoalteromonas atlantica	xSym2	51.8252	1.64667
+Pseudoalteromonas	Pseudoalteromonas atlantica	xSym2	55.515	1.77167
+Pseudoalteromonas	Pseudoalteromonas atlantica	xSym2	57.3331	1.98567
+Pseudoalteromonas	Pseudoalteromonas atlantica	xSym2	70.167	1.80467
+Marinobacter	Marinobacter salsuginis	x97B	54.3385	1.00767
+Marinobacter	Marinobacter salsuginis	x97B	37.3871	1.03967
+Marinobacter	Marinobacter salsuginis	x97B	56.3706	0.961667
+Marinobacter	Marinobacter salsuginis	x97B	59.6325	1.06167
+Marinobacter	Marinobacter salsuginis	x97B	71.076	1.25367
+Marinobacter	Marinobacter salsuginis	x97B	72.1456	1.14367
+Marinobacter	Marinobacter adhaerens	x154	16.4251	0.764667
+Marinobacter	Marinobacter adhaerens	x154	17.8155	0.648667
+Marinobacter	Marinobacter adhaerens	x154	13.9118	0.582667
+Marinobacter	Marinobacter adhaerens	x154	9.42	0.823667
+Marinobacter	Marinobacter adhaerens	x154	10.543	0.617667
+Marinobacter	Marinobacter adhaerens	x154	19.901	0.562667
+Thalassospira	Thalassospira permensis	x203B	4.21517	0.527667
+Thalassospira	Thalassospira permensis	x203B	4.21517	0.339667
+Thalassospira	Thalassospira permensis	x203B	4.71424	0.362667
+Thalassospira	Thalassospira permensis	x203B	4.92814	0.447667
+Thalassospira	Thalassospira permensis	x203B	4.3934	0.567667
+Thalassospira	Thalassospira permensis	x203B	4.21517	0.506667
+Marinobacter	Marinobacter salsuginis	x203A	13.4306	0.563667
+Marinobacter	Marinobacter salsuginis	x203A	20.5962	0.467667
+Marinobacter	Marinobacter salsuginis	x203A	12.4146	0.510667
+Marinobacter	Marinobacter salsuginis	x203A	31.291	0.576667
+Marinobacter	Marinobacter salsuginis	x203A	21.3448	0.666667
+Marinobacter	Marinobacter salsuginis	x203A	34.6065	0.431667
+Muricauda	Muricauda aquimarina	x97A	42.5742	0.910667
+Muricauda	Muricauda aquimarina	x97A	24.4998	0.946667
+Muricauda	Muricauda aquimarina	x97A	28.243	0.791667
+Muricauda	Muricauda aquimarina	x97A	45.1409	0.890667
+Muricauda	Muricauda aquimarina	x97A	33.0022	0.869667
+Muricauda	Muricauda aquimarina	x97A	44.8736	0.937667
+Muricauda	Muricauda aquimarina	x362A	4.21517	0.744667
+Muricauda	Muricauda aquimarina	x362A	10.0082	0.990667
+Muricauda	Muricauda aquimarina	x362A	4.21517	1.22067
+Muricauda	Muricauda aquimarina	x362A	11.3986	1.23967
+Muricauda	Muricauda aquimarina	x362A	6.9067	1.23567
+Muricauda	Muricauda aquimarina	x362A	5.62331	1.07467
+Neptunomonas	Neptunomonas phycophila	xSym1	19.8475	0.969667
+Neptunomonas	Neptunomonas phycophila	xSym1	23.1629	0.985667
+Neptunomonas	Neptunomonas phycophila	xSym1	31.8258	0.929667
+Neptunomonas	Neptunomonas phycophila	xSym1	29.8472	0.950667
+Neptunomonas	Neptunomonas phycophila	xSym1	37.4941	1.16567
+Neptunomonas	Neptunomonas phycophila	xSym1	37.3871	1.19367
+Marinobacter	Marinobacter adhaerens	x370	8.56441	0.409667
+Marinobacter	Marinobacter adhaerens	x370	4.98162	0.487667
+Marinobacter	Marinobacter adhaerens	x370	6.15806	0.487667
+Marinobacter	Marinobacter adhaerens	x370	4.21517	0.383667
+Marinobacter	Marinobacter adhaerens	x370	6.37195	0.567667
+Marinobacter	Marinobacter adhaerens	x370	4.21517	1.11967
+Marinobacter	Marinobacter salsuginis	x362B	55.3546	1.36467
+Marinobacter	Marinobacter salsuginis	x362B	49.1515	0.812667
+Marinobacter	Marinobacter salsuginis	x362B	31.0237	1.29467
+Marinobacter	Marinobacter salsuginis	x362B	44.7131	1.25167
+Marinobacter	Marinobacter salsuginis	x362B	38.2427	1.23467
+Marinobacter	Marinobacter salsuginis	x362B	59.2047	1.03867
+Alteromonas	Alteromonas macleodii	x74	25.195	0.467667
+Alteromonas	Alteromonas macleodii	x74	15.7835	0.603667
+Alteromonas	Alteromonas macleodii	x74	19.6336	0.390667
+Alteromonas	Alteromonas macleodii	x74	25.1415	0.624667
+Alteromonas	Alteromonas macleodii	x74	21.7191	1.12067
+Alteromonas	Alteromonas macleodii	x74	17.7085	0.728667
+Labrenzia	Labrenzia	xRT13P1	4.92814	1.64367
+Labrenzia	Labrenzia	xRT13P1	4.21517	1.86567
+Labrenzia	Labrenzia	xRT13P1	4.21517	1.80367
+Labrenzia	Labrenzia	xRT13P1	4.21517	1.90867
+Labrenzia	Labrenzia	xRT13P1	4.23297	1.95667
+Labrenzia	Labrenzia	xRT13P1	4.21517	1.63367
