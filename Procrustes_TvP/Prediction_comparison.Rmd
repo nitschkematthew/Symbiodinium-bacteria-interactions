@@ -1,0 +1,233 @@
+---
+title: "Procrustes rotation of Tax4Fun versus Piphillin"
+author: "MNitschke"
+date: "100819"
+output: html_document
+---
+
+# Libraries
+
+```{r  echo=TRUE}
+library(Tax4Fun)
+library(ade4)
+library(vegan)
+library(data.table)
+library(gplots)
+library(multtest)
+library(tibble)
+library(dplyr)
+library(phyloseq)
+library(tidyr)
+library(stringr)
+library(ggplot2)
+library(scales)
+```
+
+# Predict Tax4Fun metabolic pathways
+
+```{r}
+reshape <- importQIIMEData("../Tax4Fun/Tax4Fun_OTU.tsv")
+directory <- "D:/Post-Doc/Symbiolite/Microbiome/Sequencing_data/Vsearch outputs/uclust_assigned_taxonomy123/SILVA123/"
+
+KO <- Tax4Fun(reshape, directory, normCopyNo = TRUE)
+
+Tax4FunProfile <- KO$Tax4FunProfile
+Tax4FunProfile <- data.frame(t(KO$Tax4FunProfile))
+
+path <- Tax4Fun(reshape, directory, normCopyNo = TRUE, fctProfiling = FALSE)
+
+Tax4FunPath <- path$Tax4FunProfile
+Tax4FunPath <- data.frame(t(path$Tax4FunProfile))
+```
+
+# Covert Tax4Fun outputs to phyloseq objects
+
+## Paths first
+
+```{r}
+tab <- rownames_to_column(Tax4FunPath, var = "OTU")
+tab2 <- separate(data = tab, col = OTU, into = c("OTUID", "Rank1"), sep = ";")
+
+OTUID <- tab2$OTUID
+Rank1 <- tab2$Rank1
+tax <- data.frame(OTUID, Rank1)
+
+taxonomy <- tax_table(tax)
+rownames(taxonomy) <- taxonomy[,1]
+taxonomy <- taxonomy[,-1]
+colnames(taxonomy)[1] <- "path"
+
+map <- read.table("../Tax4Fun/map.txt", header = TRUE)
+
+sampdat <- sample_data(map)
+rownames(sampdat) <- sampdat$sample
+sampdat$sample <- NULL
+
+tab3 <- tab2
+tab3$Rank1 <- NULL
+rownames(tab3) <- tab3[,1]
+tab3[,1] <- NULL
+OTUtab <- otu_table(tab3, taxa_are_rows = TRUE)
+
+t4fpath <- merge_phyloseq(OTUtab, sampdat, taxonomy)
+```
+
+## KOs next
+
+```{r}
+tab <- rownames_to_column(Tax4FunProfile, var = "OTU")
+tab2 <- separate(data = tab, col = OTU, into = c("OTUID", "Rank1"), sep = ";")
+
+OTUID <- tab2$OTUID
+Rank1 <- tab2$Rank1
+tax <- data.frame(OTUID, Rank1)
+
+taxonomy <- tax_table(tax)
+rownames(taxonomy) <- taxonomy[,1]
+taxonomy <- taxonomy[,-1]
+colnames(taxonomy)[1] <- "KO"
+
+map <- read.table("../Tax4Fun/map.txt", header = TRUE)
+
+sampdat <- sample_data(map)
+rownames(sampdat) <- sampdat$sample
+sampdat$sample <- NULL
+
+
+tab3 <- tab2
+tab3$Rank1 <- NULL
+rownames(tab3) <- tab3[,1]
+tab3[,1] <- NULL
+OTUtab <- otu_table(tab3, taxa_are_rows = TRUE)
+
+t4fko <- merge_phyloseq(OTUtab, sampdat, taxonomy)
+```
+
+# Convert Piphillin outputs to phyloseq object
+
+## Paths first
+
+```{r}
+tax <- read.table("../Piphillin/piphillin90_pathwayko.txt", header = TRUE, sep = "\t")
+
+taxnames <- read.table("../Piphillin/rest_path.txt", header = FALSE, colClasses=c("character", "character", "character"), sep = "\t")
+taxnames$OTUID <- paste(taxnames$V1, taxnames$V2, sep="")
+taxnames$V2 <- NULL
+taxnames$V1 <- NULL
+
+taxonomy <- left_join(tax, taxnames, by = "OTUID")
+
+taxonomy <- tax_table(taxonomy)
+rownames(taxonomy) <- taxonomy[,1]
+taxonomy <- taxonomy[,-1]
+colnames(taxonomy)[1] <- "path"
+
+otu <- read.table("../Piphillin/piphillin90_OTUtabpathways.txt", header = TRUE, sep = "\t")
+
+is.num <- sapply(otu, is.numeric)
+otu[is.num] <- lapply(otu[is.num], floor)
+
+rownames(otu) <- otu[,1]
+otu[,1] <- NULL
+OTUtab <- otu_table(otu, taxa_are_rows = TRUE)
+
+map <- read.table("../Piphillin/map.txt", header = TRUE)
+
+sampdat <- sample_data(map)
+rownames(sampdat) <- sampdat$sample
+sampdat$sample <- NULL
+
+pippath <- merge_phyloseq(OTUtab, sampdat, taxonomy)
+```
+
+## KOs next
+
+```{r}
+tax <- read.table("../Piphillin/piphillin90_KO.txt", header = TRUE, sep = "\t")
+
+taxnames <- read.table("../Piphillin/rest_ko.txt", header = FALSE, colClasses=c("character", "character"), sep = "\t", quote="")
+
+taxnames <- separate(taxnames, V2, sep=";", remove = TRUE, into = c("name", "definition"))
+colnames(taxnames)[1] <- "OTUID"
+
+taxonomy <- left_join(tax, taxnames, by = "OTUID")
+
+taxonomy <- tax_table(taxonomy)
+rownames(taxonomy) <- taxonomy[,1]
+taxonomy <- taxonomy[,-1]
+colnames(taxonomy)[1] <- "name"
+colnames(taxonomy)[2] <- "definition"
+
+otu <- read.table("../Piphillin/piphillin90_OTUtabKOs.txt", header = TRUE, sep = "\t")
+
+is.num <- sapply(otu, is.numeric)
+otu[is.num] <- lapply(otu[is.num], floor)
+
+rownames(otu) <- otu[,1]
+otu[,1] <- NULL
+OTUtab <- otu_table(otu, taxa_are_rows = TRUE)
+
+map <- read.table("../Piphillin/map.txt", header = TRUE)
+
+sampdat <- sample_data(map)
+rownames(sampdat) <- sampdat$sample
+sampdat$sample <- NULL
+
+pipko <- merge_phyloseq(OTUtab, sampdat, taxonomy)
+```
+
+# Create the distance matrices and ordination for each method
+
+## Start with paths
+
+```{r}
+pipt <- transform_sample_counts(pippath, function(x) x/sum(x))
+braypip <- ordinate(pipt, "PCoA", "bray")
+
+t4ft <- transform_sample_counts(t4fpath, function(x) x/sum(x))
+brayt4f <- ordinate(t4ft, "PCoA", "bray")
+```
+
+## Perform procrustes rotation on ordinations by path
+
+```{r}
+braypipv <- data.frame(braypip$vectors)
+braypipv <- tibble::rownames_to_column(braypipv)
+braypipv <- setnames(braypipv, 1:1, c("SampleID"))
+pipsamdat <- data.frame(sample_data(pippath))
+pipsamdat <- tibble::rownames_to_column(pipsamdat)
+pipsamdat <- setnames(pipsamdat, 1:1, c("SampleID"))
+procpip <- left_join(braypipv, pipsamdat, by = "SampleID")
+
+brayt4fv <- data.frame(brayt4f$vectors)
+brayt4fv <- tibble::rownames_to_column(brayt4fv)
+brayt4fv <- setnames(brayt4fv, 1:1, c("SampleID"))
+proct4f <- left_join(brayt4fv, pipsamdat, by = "SampleID")
+
+procpip <- as.data.table(procpip)
+proct4f <- as.data.table(proct4f)
+
+po <- procuste(dfX = procpip[, list(Axis.1, Axis.2)],
+                       dfY = proct4f[, list(Axis.1, Axis.2)])
+procpip[, c("New1", "New2") := po$tabX]
+proct4f[, c("New1", "New2") := po$tabY]
+procpip[, Method := "Piphillin"]
+proct4f[, Method := "Tax4Fun"]
+keep = c("New1", "New2", "SampleID","Method","state")
+procrustdt = rbindlist(list(procpip[, keep, with = FALSE],proct4f[, keep, with = FALSE]))
+```
+
+# Visualise the differences in ordination
+
+## Supplementary methods figure SM3
+
+```{r}
+ggplot(procrustdt, aes(New1, New2, color = state, shape = Method)) + 
+  geom_line(aes(group = SampleID), color = "black") +
+  geom_point(size = 3.5) +
+  geom_text(aes(label = SampleID), size = 1.5, colour = "black") +
+  theme(aspect.ratio = 1)
+```
+
+
+

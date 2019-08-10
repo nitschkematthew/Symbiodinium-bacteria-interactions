@@ -106,17 +106,7 @@ XB <- read.table(file = 'xeqbiofilm.txt', sep = '\t', header = TRUE)
 
 # Xeq vs biofilm
 
-Perform non-parametric Kruskal-Wallis test and dunnTest for post-hoc comparisons
-
-```{r}
-xeqK <- kruskal.test(xeq ~ strain, data = XB)
-biofilmK <- kruskal.test(biofilm ~ strain, data = XB)
-
-xeqD <- dunnTest(xeq ~ strain, data = XB)
-biofilmD <- dunnTest(biofilm ~ strain, data = XB)
-```
-
-# Figure 6
+## Figure 6
 
 ```{r}
 sel <- XB %>% select(genus, species, strain, xeq, biofilm)

@@ -53,8 +53,6 @@ p <- phyloseq.extended:::ggrare(biom, step = 100, color = "state", label = "Samp
   theme(aspect.ratio = 9 / 16)
 ```
 
-
-
 # SP vs NP
 
 Subset the dataset by removing the temporal pre-calcifying and post-calcifying data. 
@@ -111,14 +109,13 @@ write.table(diversity_stats, "diverse.tsv", sep="\t", row.names = TRUE, col.name
 
 ## Alpha diversity statistics
 
-Order the table and conduct t test on calc vs non calc
-
 ```{r}
+shapiro.test(rich_stats$mean) # Fails - move to non-parametric
+shapiro.test(diversity_stats$mean) # Passes
+leveneTest(diversity_stats$mean2, group = diversity_stats$Sampledata2) # Fails - move to non-parametric
+
 kruskal.test(mean ~ Sampledata, data = rich_stats)
 kruskal.test(mean2 ~ Sampledata2, data = diversity_stats)
-
-t.test(mean ~ Sampledata, data = rich_stats)
-t.test(mean2 ~ Sampledata2, data = diversity_stats)
 ```
 
 ## Figure 1a: Unconstrained ordination
@@ -337,6 +334,8 @@ write.table(diversity_stats.temp, "diverese_temporal.tsv", sep="\t", row.names =
 Run above chunk of code, collect the alpha diversity metrics for each strain, and perform non-parametric multiple comparisons to look for differences. Note: a = strain 185, b = strain 362, c = strain M.fav
 
 ```{r}
+# Sample sizes are small for each group N = 3 so default to non-parametric to be conservative.
+
 ar <- rich_stats.temp[rich_stats.temp$Samplestrain == 'a',]
 br <- rich_stats.temp[rich_stats.temp$Samplestrain == 'b',]
 cr <- rich_stats.temp[rich_stats.temp$Samplestrain == 'c',]
