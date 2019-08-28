@@ -2,10 +2,6 @@
 title: "Symbiodiniaceae-bacteria interactions and functions supporting the formation of calcifying biofilms"
 author: "MNitschke et al"
 date: "100819"
-output:
-  pdf_document: default
-  html_document: default
-  keep_md : TRUE
 ---
 
 R scripts for reproducing the analysis of the microbiomes of Symbiodinium cultures. These scripts follow on from the Qiime + Vsearch pipeline used to generate OTUs and assign taxonomy against the Silva 132 database.The primary input is an OTU table in biom format that already contains the sample and observation metadata ("otu_table132.taxfinalmeta.biom").
@@ -64,6 +60,17 @@ SPNP <- subset_samples(biom, time=="n")
 ## Alpha diversity
 ### Supplementary Table S2
 
+Non-rarified alpha diversity 
+
+```{r}
+rich <- estimate_richness(SPNP, measures = "Observed")
+diversity <- estimate_richness(SPNP, measures = "InvSimpson")
+
+alpha <- cbind(rich, diversity)
+alpha$samplenames <- sample_names(SPNP)
+alpha$state <- sample_data(SPNP)$state
+```
+
 Multiple rarify (100 replications) to minimum read depth across samples to compute alpha diversity statistics (richness, diversity)
 
 ```{r}
@@ -103,7 +110,7 @@ measure2 <- rep("diversity", nsamp)
 diversity_stats <- data.frame(SampleID2, mean2, sd2, Sampledata2, measure2)
 diversity_stats
 
-write.table(rich_stats, "rich.tsv", sep="\t", row.names = TRUE, col.names = TRUE, quote = FALSE)
+write.table(rich_stats, "rich.tsv", sep = "\t", row.names = TRUE, col.names = TRUE, quote = FALSE)
 write.table(diversity_stats, "diverse.tsv", sep="\t", row.names = TRUE, col.names = TRUE, quote = FALSE)
 ```
 
@@ -149,6 +156,7 @@ plot(betastate)
 Run script chunk above first and then compute statistics and homogeneity of dispersions test
 
 ## Supplementary Table S1
+
 ```{r}
 adonis2(bray ~ state + clade, by = "margin", data = sampledf)
 
@@ -167,15 +175,15 @@ Summarize by genus-level taxonomy assignments, transform to relative proportions
 
 ```{r}
 gen_glomcalc <- tax_glom(SPNP, taxrank="Rank6")
-gen_glomcalc = transform_sample_counts(gen_glomcalc, function(x) x/sum(x))
+gen_glomcalc <- transform_sample_counts(gen_glomcalc, function(x) x/sum(x))
 
-TOP=names(sort(taxa_sums(gen_glomcalc),TRUE)[1:25])
-TOP=prune_taxa(TOP,gen_glomcalc)
+TOP <- names(sort(taxa_sums(gen_glomcalc),TRUE)[1:25])
+TOP <- prune_taxa(TOP,gen_glomcalc)
 
 plot_heatmap(TOP, "PCoA", "bray", sample.order = order, low="#000033", high="#FF3300", taxa.label = "Rank6", trans=identity_trans())
 
-rare=names(sort(taxa_sums(gen_glomcalc),TRUE)[20:66])
-rare=prune_taxa(rare,gen_glomcalc)
+rare <- names(sort(taxa_sums(gen_glomcalc),TRUE)[20:66])
+rare <- prune_taxa(rare,gen_glomcalc)
 
 plot_heatmap(rare, "PCoA", "bray", sample.order = order, low="#000033", high="#338DF4", taxa.label = "Rank6", trans = identity_trans())
 ```
@@ -248,7 +256,7 @@ p <- ggplot(sigtabf, aes(x = log2FoldChange, y = Rank5, color = Rank5)) +
 ## Supplementary Figure S2: Phylum level relative proportions
 
 ```{r}
-phy_glom <- tax_glom(SPNP, taxrank="Rank2")
+phy_glom <- tax_glom(SPNP, taxrank = "Rank2")
 phy_glom = transform_sample_counts(phy_glom, function(x) x/sum(x))
 
 plot_bar(phy_glom, fill = "Rank2") + 
@@ -263,13 +271,16 @@ Compute core to compare to Lawson et al 2017. Filter dataset to remove an OTU if
 n <- length(sample_names(biom))
 flist <- filterfun(kOverA(n, 0))
 a <- filter_taxa(biom, flist)
-core = prune_taxa(a, biom)
+core <- prune_taxa(a, biom)
 coreglom <- tax_glom(core, taxrank = "Rank6")
 ```
 
 ```{r}
-coretab <- as.data.frame(tax_table(coreglom))
-coretab$Rank7 <- NULL
+coretab <- psmelt(coreglom) %>%
+  group_by(OTU, Rank1, Rank2, Rank3, Rank4, Rank5, Rank6) %>%
+  summarise(mean_abundance = round(digits = 2, mean(Abundance))) %>%
+  arrange(desc(mean_abundance))
+
 write.table(coretab,"core.tsv", sep="\t", row.names = TRUE, col.names = TRUE, quote = FALSE)
 ```
 
@@ -280,7 +291,7 @@ Subset to only the data that has pre, active, and post calcifying phases (185, M
 Note: In the sample metadata culture "a" = strain 185. "b" = strain 362. "c" = strain Mfav.
 
 ```{r}
-subtemporal <- subset_samples(biom, series=="y")
+subtemporal <- subset_samples(biom, series == "y")
 ```
 
 ## Alpha diversity
@@ -362,9 +373,9 @@ positions <- c("pre", "active", "post")
 
 Richplot <- aggregate(rich_stats.temp[, 2:3], list(rich_stats.temp$Sampledata.temp, rich_stats.temp$Samplestrain), mean)
 
-rp <- ggplot(data=Richplot, aes(x=Group.1, y=mean.temp)) + 
+rp <- ggplot(data = Richplot, aes(x = Group.1, y = mean.temp)) + 
   geom_bar(stat = "identity") + facet_grid(~Group.2) + 
-  geom_errorbar(aes(ymin=mean.temp-sd.temp/sqrt(3), ymax=mean.temp+sd.temp/sqrt(3)), width=0.2) +
+  geom_errorbar(aes(ymin = mean.temp-sd.temp/sqrt(3), ymax=mean.temp+sd.temp/sqrt(3)), width=0.2) +
   scale_x_discrete(limits = positions) +
   theme(aspect.ratio = 1)
   
@@ -372,9 +383,9 @@ rp
 
 diverplot <- aggregate(diversity_stats.temp[, 2:3], list(diversity_stats.temp$Sampledata.temp, diversity_stats.temp$Samplestrain), mean)
 
-dp <- ggplot(data=diverplot, aes(x=Group.1, y=mean2.temp)) + 
+dp <- ggplot(data=diverplot, aes(x=Group.1, y = mean2.temp)) + 
   geom_bar(stat = "identity") + facet_grid(~Group.2) + 
-  geom_errorbar(aes(ymin=mean2.temp-sd2.temp/sqrt(3), ymax=mean2.temp+sd2.temp/sqrt(3)), width=0.2) +
+  geom_errorbar(aes(ymin = mean2.temp - sd2.temp/sqrt(3), ymax = mean2.temp + sd2.temp/sqrt(3)), width = 0.2) +
   scale_x_discrete(limits = positions) +
   theme(aspect.ratio = 1)
 
@@ -415,6 +426,7 @@ plot(beta2)
 
 ```{r echo=TRUE, tidy=TRUE, tidy.opts=list(width.cutoff=60)}
 adonis2(formula = subtemptransbray ~ phase, data = df)
+
 # First model (phase only) does not detect differences. Constrain permutations to be nested within each culture to detect differences in phase specific to each culture.
 
 adonis2(formula = subtemptransbray ~ culture/phase, data = df, strata = df$culture)
@@ -434,55 +446,41 @@ phasegen <- tax_glom(subtemporal, taxrank="Rank6")
 # Start by treating phases as replicates and ignore cultures
 phasegend2 <- phyloseq_to_deseq2(phasegen, ~ phase)
 
-phasegend2 = DESeq(phasegend2, test="Wald", fitType="parametric")
+phasegend2 <- DESeq(phasegend2, test="Wald", fitType="parametric")
 
-res.p.a = results(phasegend2, cooksCutoff = FALSE, contrast = c("phase", "pre", "active"))
-res.a.po = results(phasegend2, cooksCutoff = FALSE, contrast = c("phase", "active", "post"))
-res.p.po = results(phasegend2, cooksCutoff = FALSE, contrast = c("phase", "pre", "post"))
+res.p.a <- results(phasegend2, cooksCutoff = FALSE, contrast = c("phase", "pre", "active"))
+res.a.po <- results(phasegend2, cooksCutoff = FALSE, contrast = c("phase", "active", "post"))
+res.p.po <- results(phasegend2, cooksCutoff = FALSE, contrast = c("phase", "pre", "post"))
 
-alpha = 0.05
+alpha <- 0.05
 
-sigtab.p.a = res.p.a[which(res.p.a$padj < alpha), ]
-sigtab.p.a = cbind(as(sigtab.p.a, "data.frame"), as(tax_table(phasegen)[rownames(sigtab.p.a), ], "matrix"))
+sigtab.p.a <- res.p.a[which(res.p.a$padj < alpha), ]
+sigtab.p.a <- cbind(as(sigtab.p.a, "data.frame"), as(tax_table(phasegen)[rownames(sigtab.p.a), ], "matrix"))
 
-View(sigtab.p.a)
+sigtab.a.po <- res.a.po[which(res.a.po$padj < alpha), ]
+sigtab.a.po <- cbind(as(sigtab.a.po, "data.frame"), as(tax_table(phasegen)[rownames(sigtab.a.po), ], "matrix"))
 
-sigtab.a.po = res.a.po[which(res.a.po$padj < alpha), ]
-sigtab.a.po = cbind(as(sigtab.a.po, "data.frame"), as(tax_table(phasegen)[rownames(sigtab.a.po), ], "matrix"))
-
-View(sigtab.a.po)
-
-sigtab.p.po = res.p.po[which(res.p.po$padj < alpha), ]
-sigtab.p.po = cbind(as(sigtab.p.po, "data.frame"), as(tax_table(phasegen)[rownames(sigtab.p.po), ], "matrix"))
-
-View(sigtab.p.po)
+sigtab.p.po <- res.p.po[which(res.p.po$padj < alpha), ]
+sigtab.p.po <- cbind(as(sigtab.p.po, "data.frame"), as(tax_table(phasegen)[rownames(sigtab.p.po), ], "matrix"))
 
 # Next explore across cultures
 
 phasegend2 <- phyloseq_to_deseq2(phasegen, ~ culture * phase) 
 
-phasegend2 = DESeq(phasegend2, test="Wald", fitType="parametric")
+phasegend2 <- DESeq(phasegend2, test="Wald", fitType="parametric")
 
-res.p.a = results(phasegend2, cooksCutoff = FALSE, contrast = c("phase", "pre", "active"))
-res.a.po = results(phasegend2, cooksCutoff = FALSE, contrast = c("phase", "active", "post"))
-res.p.po = results(phasegend2, cooksCutoff = FALSE, contrast = c("phase", "pre", "post"))
+res.p.a <- results(phasegend2, cooksCutoff = FALSE, contrast = c("phase", "pre", "active"))
+res.a.po <- results(phasegend2, cooksCutoff = FALSE, contrast = c("phase", "active", "post"))
+res.p.po <- results(phasegend2, cooksCutoff = FALSE, contrast = c("phase", "pre", "post"))
 
-alpha = 0.05
+sigtab.p.a <- res.p.a[which(res.p.a$padj < alpha), ]
+sigtab.p.a <- cbind(as(sigtab.p.a, "data.frame"), as(tax_table(phasegen)[rownames(sigtab.p.a), ], "matrix"))
 
-sigtab.p.a = res.p.a[which(res.p.a$padj < alpha), ]
-sigtab.p.a = cbind(as(sigtab.p.a, "data.frame"), as(tax_table(phasegen)[rownames(sigtab.p.a), ], "matrix"))
+sigtab.a.po <- res.a.po[which(res.a.po$padj < alpha), ]
+sigtab.a.po <- cbind(as(sigtab.a.po, "data.frame"), as(tax_table(phasegen)[rownames(sigtab.a.po), ], "matrix"))
 
-View(sigtab.p.a)
-
-sigtab.a.po = res.a.po[which(res.a.po$padj < alpha), ]
-sigtab.a.po = cbind(as(sigtab.a.po, "data.frame"), as(tax_table(phasegen)[rownames(sigtab.a.po), ], "matrix"))
-
-View(sigtab.a.po)
-
-sigtab.p.po = res.p.po[which(res.p.po$padj < alpha), ]
-sigtab.p.po = cbind(as(sigtab.p.po, "data.frame"), as(tax_table(phasegen)[rownames(sigtab.p.po), ], "matrix"))
-
-View(sigtab.p.po)
+sigtab.p.po <- res.p.po[which(res.p.po$padj < alpha), ]
+sigtab.p.po <- cbind(as(sigtab.p.po, "data.frame"), as(tax_table(phasegen)[rownames(sigtab.p.po), ], "matrix"))
 ```
 
 ### Figure 3b
@@ -500,12 +498,12 @@ df$Rank7 <- NULL
 
 avgs <- df %>% select(OTU, Sample, culture, Abundance, Rank6, phase)
 
-d = avgs %>%
+d <- avgs %>%
     group_by(Sample,culture,Rank6,phase) %>%
     filter(Abundance > 0) %>%
     summarize(rank6.abund = sum(Abundance))
 
-d2 = d %>%
+d2 <- d %>%
     group_by(Rank6,phase) %>%
     #filter(Abundance > 0) %>%
     summarize(abund = mean(rank6.abund), se = sd(rank6.abund)/sqrt(3))
@@ -542,12 +540,12 @@ df$Rank7 <- NULL
 
 avgs <- df %>% select(OTU, Sample, culture, Abundance, Rank6, phase)
 
-d = avgs %>%
+d <- avgs %>%
     group_by(Sample,culture,Rank6,phase) %>%
     filter(Abundance > 0) %>%
     summarize(rank6.abund = sum(Abundance))
 
-d2 = d %>%
+d2 <- d %>%
     group_by(culture,Rank6,phase) %>%
     summarize(abund = mean(rank6.abund), se = sd(rank6.abund)/sqrt(3))
 
