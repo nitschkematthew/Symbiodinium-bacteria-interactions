@@ -88,10 +88,10 @@ Chl a OD (absorbance in vivo 675 nm) vs acidic polysacharrides (Xeq ug) through 
 theme_set(theme_bw())
 p <- ggplot(data=XC, aes(x = chl, y=xeq, sample = culture)) +
       geom_smooth(method = "lm", se=TRUE, color="red", formula = y ~ x) +
-      geom_line(aes(x = chl, y = xeq)) +
+      geom_path() +
+      geom_errorbar(mapping = aes(x = chl, y = xeq, ymin = xeq - xeqse, ymax = xeq + xeqse),width = 0.01) +
+      geom_errorbarh(mapping = aes(x = chl, y = xeq, xmin = chl - chlse, xmax = chl + chlse, height = 2)) +
       geom_point(aes(x = chl, y = xeq), size = 2, shape = 21, fill = "white") +
-      geom_errorbar(mapping = aes(x = chl, y = xeq, ymin = xeq - xeqse, ymax = xeq + xeqse),width=0.01) +
-      geom_errorbarh(mapping = aes(x = chl, y = xeq, xmin = chl - chlse, xmax = chl + chlse, height=2)) +
       facet_wrap(~order, nrow = 5, ncol = 6) +
       theme(aspect.ratio = 1)
       
