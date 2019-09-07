@@ -1,5 +1,5 @@
-## Role of bacterial microbiomes in photosynthetically-induced formation of microbialites
+## Symbiolite formation: A powerful in vitro model to untangle the role of bacterial communities in the photosynthesis-induced formation of microbialites
 
-### Matthew R. Nitschke, João Simões, Cátia Fidalgo, Cláudio Brandão, João Ser&#0244;dio, Artur Alves, J&#0246;rg C. Frommlet
+### Matthew R. Nitschke, Cátia Fidalgo, João Simões, Cláudio Brandão, Artur Alves, João Ser&#0244;dio, J&#0246;rg C. Frommlet
 
-Manuscript abstract here and brief description
+Manuscript abstract here following publication
