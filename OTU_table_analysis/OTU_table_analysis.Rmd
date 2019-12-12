@@ -1,5 +1,5 @@
 ---
-title: "Symbiodiniaceae-bacteria interactions and functions supporting the formation of calcifying biofilms"
+title: "Symbiolite formation: A powerful in vitro model to untangle the role of bacterial communities in the photosynthesis-induced formation of microbialites"
 author: "MNitschke et al"
 date: "100819"
 ---
@@ -15,6 +15,8 @@ library(DESeq2)
 library(vegan)
 library(ggplot2)
 library(dplyr)
+library(tidyr)
+library(forcats)
 library(stringr)
 library(scales)
 library(data.table)
@@ -54,7 +56,7 @@ p <- phyloseq.extended:::ggrare(biom, step = 100, color = "state", label = "Samp
 Subset the dataset by removing the temporal pre-calcifying and post-calcifying data. 
 
 ```{r}
-SPNP <- subset_samples(biom, time=="n")
+SPNP <- subset_samples(biom, time == "n")
 ```
 
 ## Alpha diversity
@@ -132,7 +134,7 @@ SP vs NP ordination using a Bray-Curtis matrix and PCoA ordination.
 ```{r}
 calctrans <- transform_sample_counts(SPNP, function(x) x/sum(x))
 brayordtrans <- ordinate(calctrans, "PCoA", "bray")
-plot_ordination(calctrans, brayordtrans, color="state", shape="clade")  + 
+plot_ordination(calctrans, brayordtrans, color = "state", shape = "clade")  + 
   geom_text(aes(label = sample_names(calctrans)), vjust = 1.5) + 
   geom_point(size = 4)
 ```
@@ -267,21 +269,72 @@ plot_bar(phy_glom, fill = "Rank2") +
 
 Compute core to compare to Lawson et al 2017. Filter dataset to remove an OTU if it is not present in all samples.
 
+Across entire dataset
+
 ```{r}
 n <- length(sample_names(biom))
 flist <- filterfun(kOverA(n, 0))
 a <- filter_taxa(biom, flist)
 core <- prune_taxa(a, biom)
-coreglom <- tax_glom(core, taxrank = "Rank6")
-```
 
-```{r}
-coretab <- psmelt(coreglom) %>%
+coretab <- psmelt(core) %>%
+  mutate_if(is.factor, fct_explicit_na, na_level = "Unassigned") %>%
   group_by(OTU, Rank1, Rank2, Rank3, Rank4, Rank5, Rank6) %>%
   summarise(mean_abundance = round(digits = 2, mean(Abundance))) %>%
   arrange(desc(mean_abundance))
 
 write.table(coretab,"core.tsv", sep="\t", row.names = TRUE, col.names = TRUE, quote = FALSE)
+```
+
+For SP samples only
+
+```{r}
+SP <- subset_samples(biom, state == "SP")
+
+n <- length(sample_names(SP))
+flist <- filterfun(kOverA(n, 0))
+a <- filter_taxa(SP, flist)
+SPcore <- prune_taxa(a, SP)
+
+SPcoretab <- psmelt(SPcore) %>%
+  mutate_if(is.factor, fct_explicit_na, na_level = "Unassigned") %>%
+  group_by(OTU, Rank1, Rank2, Rank3, Rank4, Rank5, Rank6) %>%
+  summarise(mean_abundance = round(digits = 2, mean(Abundance))) %>%
+  arrange(desc(mean_abundance))
+```
+
+For NP samples only
+
+```{r}
+NP <- subset_samples(biom, state == "NP")
+
+n <- length(sample_names(NP))
+flist <- filterfun(kOverA(n, 0))
+a <- filter_taxa(NP, flist)
+NPcore <- prune_taxa(a, NP)
+
+NPcoretab <- psmelt(NPcore) %>%
+  mutate_if(is.factor, fct_explicit_na, na_level = "Unassigned") %>%
+  group_by(OTU, Rank1, Rank2, Rank3, Rank4, Rank5, Rank6) %>%
+  summarise(mean_abundance = round(digits = 2, mean(Abundance))) %>%
+  arrange(desc(mean_abundance))
+```
+
+Set differences
+
+```{r}
+# There are 5 OTUs specific to the SP core
+SPcoretab_final <- SPcoretab %>%
+  mutate(in_NP_core = OTU %in% NPcoretab$OTU) %>%
+  filter(in_NP_core == FALSE)
+
+# There are 113 OTUs specific to the NP core
+NPcoretab_final <- NPcoretab %>%
+  mutate(in_SP_core = OTU %in% SPcoretab$OTU) %>%
+  filter(in_SP_core == FALSE)
+
+write.table(SPcoretab_final,"SP_core.tsv", sep="\t", row.names = TRUE, col.names = TRUE, quote = FALSE)
+write.table(NPcoretab_final,"NP_core.tsv", sep="\t", row.names = TRUE, col.names = TRUE, quote = FALSE)
 ```
 
 # SP cultures through time

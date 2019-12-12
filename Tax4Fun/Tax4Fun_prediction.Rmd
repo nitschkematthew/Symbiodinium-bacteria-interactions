@@ -8,7 +8,7 @@ keep_md: TRUE
 
 # Libraries
 
-```{r  echo=TRUE}
+```{r}
 library(Tax4Fun)
 library(vegan)
 library(data.table)
@@ -249,8 +249,8 @@ sample_data(phyloKO)$clade <- clade
 Subset the dataset by removing the temporal pre-calcifying and post-calcifying data. 
 
 ```{r}
-svnp <- subset_samples(phylop, time=="n")
-svnko <- subset_samples(phyloKO, time=="n")
+svnp <- subset_samples(phylop, time == "n")
+svnko <- subset_samples(phyloKO, time == "n")
 ```
 
 ## Figure 2a part 1: Unconstrained ordination
@@ -259,7 +259,7 @@ SP vs NP ordination using a Bray-Curtis matrix and PCoA ordination.
 
 ```{r}
 brayp <- ordinate(svnp, "PCoA", "bray")
-plot_ordination(svnp, brayp, color="state", shape="clade") + 
+plot_ordination(svnp, brayp, color = "state", shape = "clade") + 
   geom_text(aes(label = sample_names(svnp)), vjust = 1.5) + 
   geom_point(size = 4) + 
   theme(aspect.ratio = 1)
@@ -327,7 +327,57 @@ completeness <- function(pathls, phyloseqpath, phyloseqko, refpaths){
   return(output)
 }
 
-completeness(targetpaths, svnp, svnko, refpaths)
+total_comp <- completeness(targetpaths, svnp, svnko, refpaths)
+```
+
+Pathway completeness SP versus NP
+
+```{r}
+svnp_SP <- subset_samples(svnp, state == "SP")
+svkop_SP <- subset_samples(svnko, state == "SP")
+svkop_SP <- filter_taxa(svkop_SP, function(x) sum(x) > 0, TRUE)
+
+SP_comp <- completeness(targetpaths, svnp_SP, svkop_SP, refpaths)
+
+svnp_NP <- subset_samples(svnp, state == "NP")
+svkop_NP <- subset_samples(svnko, state == "NP")
+svkop_NP <- filter_taxa(svkop_NP, function(x) sum(x) > 0, TRUE)
+
+NP_comp <- completeness(targetpaths, svnp_NP, svkop_NP, refpaths)
+```
+
+Now compute on a sample by sample basis by looping
+
+```{r}
+sample_data(svnp)$names <- sample_names(svnp)
+single_sample_p <- list()
+for(i in 1:length(sample_data(svnp)$names)){
+    name <- as.character(sample_data(svnp)$names[i])
+    single_sample_p[[i]] <- subset_samples(svnp, names == name)
+}
+
+sample_data(svnko)$names <- sample_names(svnko)
+single_sample_ko <- list()
+for(i in 1:length(sample_data(svnko)$names)){
+    name <- as.character(sample_data(svnko)$names[i])
+    single_sample_ko[[i]] <- subset_samples(svnko, names == name)
+    single_sample_ko[[i]] <- filter_taxa(single_sample_ko[[i]], function(x) sum(x) > 0, TRUE)
+}
+
+per_sample_comp_list <- list()
+for(i in 1:length(single_sample_p)){
+    single_comp <- completeness(targetpaths, single_sample_p[[i]], single_sample_ko[[i]], refpaths)
+    per_sample_comp_list[[i]] <- single_comp
+}
+
+key <- data.frame(names = sample_names(svnp), state = sample_data(svnp)$state, id = as.character(seq(1, length(sample_names(svnp)), 1)))
+per_sample_comp <- bind_rows(per_sample_comp_list, .id = "id") %>%
+  left_join(., key)
+
+per_sample_comp_summary <- per_sample_comp %>%
+  group_by(ko, path, state) %>%
+  summarise(mean_pc = mean(pc),
+            sd_pc = sd(pc))
 ```
 
 ## Figure 2b
@@ -344,7 +394,7 @@ d = avgs %>%
     summarize(abund = mean(Abundance*100), sd = sd(Abundance*100))
 
 d = d %>%
-  mutate(se = ifelse(state=="SP", sd/sqrt(17),sd/sqrt(7)))
+  mutate(se = ifelse(state == "SP", sd/sqrt(17),sd/sqrt(7)))
 
 d$path <- as.factor(d$path)
 d$state <- as.factor(d$state)
@@ -368,8 +418,8 @@ Subset to only the data that has pre, active, and post calcifying phases (185, M
 Note: In the sample metadata culture "a" = strain 185. "b" = strain 362. "c" = strain Mfav.
 
 ```{r}
-pathtemp <- subset_samples(phylop, series=="y")
-KOtemp <- subset_samples(phyloKO, series=="y")
+pathtemp <- subset_samples(phylop, series == "y")
+KOtemp <- subset_samples(phyloKO, series == "y")
 ```
 
 ## Figure 4a part 1
@@ -379,7 +429,7 @@ Ordination of phases according to KEGG pathways
 ```{r}
 bpatht <- ordinate(pathtemp, "PCoA", "bray")
 
-plot_ordination(pathtemp, bpatht, color="phase", shape="culture")  + 
+plot_ordination(pathtemp, bpatht, color = "phase", shape = "culture")  + 
   geom_text(aes(label = sample_names(pathtemp)), vjust = 1.5) + 
   geom_point(size = 4)+
   theme(aspect.ratio = 1)
